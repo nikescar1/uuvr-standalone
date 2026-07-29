@@ -45,12 +45,12 @@ public class VrTogglerManager
         // no longer exists. Those games need XR plugin management, which we can only reach by reflection.
         if (ReflectionXrPluginToggler.IsSupported())
         {
-            Debug.Log("UUVR: this game has XR Plugin Management, using it to start VR.");
+            UuvrTrace.Log("this game has XR Plugin Management, using it to start VR");
             _toggler = new ReflectionXrPluginToggler();
         }
         else
         {
-            Debug.Log("UUVR: no XR Plugin Management found, using the legacy VR path.");
+            UuvrTrace.Log("no XR Plugin Management found, using the legacy VR path");
             _toggler = new LegacyOpenVrToggler();
         }
 #endif

@@ -241,7 +241,8 @@ public class ModInstaller
             if (game.Backend == UnityBackend.Il2Cpp && generation == UnityGeneration.Modern)
             {
                 _log("Note: this is a modern (Unity 2020+) IL2CPP game, which UUVR supports only experimentally.");
-                _log("It will try to start VR through the game's own XR Plugin Management. If VR never turns on, check BepInEx/LogOutput.log for lines starting with 'UUVR:' — they say exactly where it stopped.");
+                _log("It will try to start VR through the game's own XR Plugin Management a few seconds after launch. Check BepInEx/plugins/UUVR/uuvr-trace.log to see how far it got.");
+                _log("If the game crashes or hangs on startup, raise 'VR Start Delay' or set 'Start VR Automatically = false' in BepInEx/config/raicuparta.uuvr-legacy.cfg, then use the toggle VR key (F3) in-game.");
             }
 
             return new InstallResult { Success = true, Message = $"UUVR installed ({flavor})." };
@@ -338,5 +339,5 @@ public class ModInstaller
 
 public static class LoaderVersion
 {
-    public const string Value = "0.5.2";
+    public const string Value = "0.5.3";
 }

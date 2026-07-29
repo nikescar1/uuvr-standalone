@@ -88,8 +88,12 @@ Tips when a game misbehaves:
 - If close objects get cut off, enable **Override Near Clip**.
 - IL2CPP games take a few minutes on first launch while BepInEx generates interop
   assemblies — that's normal.
-- If VR never turns on, open `BepInEx/LogOutput.log` and look for lines starting with
-  `UUVR:` — they report which VR path was chosen and where it failed.
+- If VR never turns on, open `BepInEx/plugins/UUVR/uuvr-trace.log` — it records every VR
+  startup step and survives a hard crash, so its last line is where things went wrong.
+  `BepInEx/LogOutput.log` has the same `UUVR:` lines mixed in with everything else.
+- **If the game crashes or hangs on startup**, VR is being started before the game is ready.
+  In `BepInEx/config/raicuparta.uuvr-*.cfg` raise `VR Start Delay`, or set
+  `Start VR Automatically = false` and press the toggle VR key (F3) once you're in-game.
 
 ## Building from source
 
