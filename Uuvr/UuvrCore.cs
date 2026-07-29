@@ -31,13 +31,25 @@ public class UuvrCore: MonoBehaviour
 
     public bool IsVrEnabled => _vrTogglerManager is { IsVrEnabled: true };
 
+    private static bool _isQuitting;
+
     public static void Create()
     {
+        if (Instance != null) return;
+
         new GameObject("UUVR").AddComponent<UuvrCore>();
     }
 
     private void Awake()
     {
+        // The core gets created very early, and can get destroyed by the first scene load,
+        // which recreates it. Make sure that never leaves two cores fighting each other.
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         Instance = this;
         DontDestroyOnLoad(gameObject);
         gameObject.AddComponent<VrCameraManager>();
@@ -48,11 +60,21 @@ public class UuvrCore: MonoBehaviour
 
     private void OnDestroy()
     {
-        if (Instance == this) Instance = null;
+        // A duplicate cleaning itself up, not the live core going away.
+        if (Instance != this) return;
+
+        Instance = null;
+
+        if (_isQuitting) return;
 
         Debug.Log("UUVR has been destroyed. This shouldn't have happened. Recreating...");
 
         Create();
+    }
+
+    private void OnApplicationQuit()
+    {
+        _isQuitting = true;
     }
 
     public void ToggleVr()
@@ -69,13 +91,36 @@ public class UuvrCore: MonoBehaviour
 
         _refreshRateProperty = xrDeviceType?.GetProperty("refreshRate");
         
-        _vrUi = UuvrBehaviour.Create<VrUiManager>(transform);
-        _thingDisabler = UuvrBehaviour.Create<ThingDisabler>(transform);
-        _menu = UuvrBehaviour.Create<UuvrMenu>(transform);
+        // Each part is created independently, so a game where one of them can't be set up
+        // still gets everything else. Starting VR is the important one, so it goes last
+        // and never depends on the UI having worked.
+        _vrUi = TryCreate<VrUiManager>("VR UI");
+        _thingDisabler = TryCreate<ThingDisabler>("thing disabler");
+        _menu = TryCreate<UuvrMenu>("in-game menu");
 
-        _vrTogglerManager = new VrTogglerManager();
+        try
+        {
+            _vrTogglerManager = new VrTogglerManager();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"UUVR: failed to set up VR: {exception}");
+        }
 
         SetPositionTrackingEnabled(false);
+    }
+
+    private T? TryCreate<T>(string description) where T : UuvrBehaviour
+    {
+        try
+        {
+            return UuvrBehaviour.Create<T>(transform);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"UUVR: failed to create the {description}, continuing without it: {exception}");
+            return null;
+        }
     }
 
     private void Update()

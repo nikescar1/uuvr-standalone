@@ -29,7 +29,7 @@ public class UuvrPlugin
 : BaseUnityPlugin
 #endif
 {
-    public const string PluginVersion = "0.5.1";
+    public const string PluginVersion = "0.5.2";
 
     private static UuvrPlugin _instance;
     public static string ModFolderPath { get; private set; }
@@ -63,6 +63,7 @@ public class UuvrPlugin
        ClassInjector.RegisterTypeInIl2Cpp<CanvasRedirectPatchMode>();
        ClassInjector.RegisterTypeInIl2Cpp<ScreenMirrorPatchMode>();
        ClassInjector.RegisterTypeInIl2Cpp<UuvrMenu>();
+       ClassInjector.RegisterTypeInIl2Cpp<ThingDisabler>();
 #endif
 
         UuvrCore.Create();
