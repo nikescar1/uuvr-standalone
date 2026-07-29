@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using BepInEx;
 using UnityEngine;
+#if CPP
+using Il2CppInterop.Runtime;
+#endif
 
 namespace Uuvr;
 
@@ -56,7 +59,25 @@ public class ThingDisabler : UuvrBehaviour
             .SelectMany(name =>
             {
                 var type = Type.GetType(name);
+                if (type == null)
+                {
+                    Debug.LogWarning($"[ThingDisabler] Failed to find type '{name}'");
+                    return Enumerable.Empty<UnityEngine.Object>();
+                }
+#if CPP
+                var foundObjects = FindObjectsOfType(Il2CppType.From(type));
+                var results = new List<UnityEngine.Object>();
+                if (foundObjects != null)
+                {
+                    for (var index = 0; index < foundObjects.Length; index++)
+                    {
+                        results.Add(foundObjects[index]);
+                    }
+                }
+                return (IEnumerable<UnityEngine.Object>)results;
+#else
                 return FindObjectsOfType(type);
+#endif
             });
     }
 
@@ -70,7 +91,7 @@ public class ThingDisabler : UuvrBehaviour
             var gameObjectProperty = componentObject.GetType()
                 .GetProperty("gameObject", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
             if (gameObjectProperty == null) continue;
-            var gameObject = (GameObject)gameObjectProperty.GetValue(componentObject);
+            var gameObject = (GameObject)gameObjectProperty.GetValue(componentObject, null);
             if (gameObject == null) continue;
             gameObject.SetActive(false);
         }
@@ -90,7 +111,7 @@ public class ThingDisabler : UuvrBehaviour
             if (enabledProperty == null || !enabledProperty.CanWrite ||
                 enabledProperty.PropertyType != typeof(bool)) return;
 
-            enabledProperty.SetValue(componentObject, false);
+            enabledProperty.SetValue(componentObject, false, null);
         }
     }
 }

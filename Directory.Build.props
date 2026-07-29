@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current"
   xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup>
-    <BepInExDir>C:\Users\rai\AppData\Roaming\raicuparta\rai-pal\data\mod-loaders\bepinex</BepInExDir>
-  </PropertyGroup>
+  <!--
+    Output location:
+    - By default, everything is built into the repo-local "build" folder, laid out per flavor
+      (build/uuvr-<backend>-<generation>/...). This is what the standalone loader and CI packaging use.
+    - Setting the BepInExDir environment variable redirects output into a Rai Pal / BepInEx
+      installation, preserving the old development workflow.
+  -->
 
   <!--  Il2Cpp  -->
   <PropertyGroup Condition=" '$(Configuration)' == 'legacy-il2cpp' Or '$(Configuration)' == 'modern-il2cpp' ">
@@ -29,5 +33,11 @@
   <PropertyGroup Condition=" '$(Configuration)' == 'modern-mono' Or '$(Configuration)' == 'modern-il2cpp' ">
     <UnityGeneration>modern</UnityGeneration>
     <DefineConstants>$(DefineConstants);MODERN</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(UnityBackend)' != '' ">
+    <UuvrFlavor>uuvr-$(UnityBackend)-$(UnityGeneration)</UuvrFlavor>
+    <UuvrOutputRoot Condition=" '$(BepInExDir)' != '' ">$(BepInExDir)\mods\$(UnityBackendFolderName)\$(UuvrFlavor)</UuvrOutputRoot>
+    <UuvrOutputRoot Condition=" '$(UuvrOutputRoot)' == '' ">$(MSBuildThisFileDirectory)build\$(UuvrFlavor)</UuvrOutputRoot>
   </PropertyGroup>
 </Project>

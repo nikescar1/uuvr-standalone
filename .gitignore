@@ -384,3 +384,6 @@ FodyWeavers.xsd
 # JetBrains Rider
 .idea/
 *.sln.iml
+
+# UUVR standalone build output
+/build/

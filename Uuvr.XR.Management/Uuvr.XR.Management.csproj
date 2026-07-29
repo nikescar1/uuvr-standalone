@@ -10,7 +10,7 @@
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
         <DebugType>none</DebugType>
-        <OutputPath>$(BepInExDir)\mods\$(UnityBackendFolderName)\uuvr-$(UnityBackend)-$(UnityGeneration)\plugins</OutputPath>
+        <OutputPath>$(UuvrOutputRoot)\plugins</OutputPath>
         <TargetFramework>net48</TargetFramework>
         <RootNamespace>UuvrXrManagement</RootNamespace>
     </PropertyGroup>
