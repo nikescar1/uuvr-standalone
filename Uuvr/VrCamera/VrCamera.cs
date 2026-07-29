@@ -28,6 +28,7 @@ public class VrCamera : UuvrBehaviour
     private Camera? _childCamera;
     private UuvrPoseDriver? _childCameraPoseDriver;
     private LineRenderer _forwardLine;
+    private float _originalNearClip = -1f;
     // private int _originalCullingMask = -2;
 
 #if CPP
@@ -110,7 +111,9 @@ public class VrCamera : UuvrBehaviour
         {
             ParentCamera.depth = ModConfiguration.Instance.VrCameraDepth.Value;
         }
-        
+
+        UpdateNearClip();
+
         var cameraTrackingMode = ModConfiguration.Instance.CameraTracking.Value;
         _parentCameraPoseDriver.enabled = cameraTrackingMode == ModConfiguration.CameraTrackingMode.Absolute;
         _childCameraPoseDriver.gameObject.SetActive(cameraTrackingMode != ModConfiguration.CameraTrackingMode.Absolute);
@@ -148,6 +151,29 @@ public class VrCamera : UuvrBehaviour
         if (HighestDepthVrCamera == null || ParentCamera.depth > HighestDepthVrCamera.CameraInUse.depth)
         {
             HighestDepthVrCamera = this;
+        }
+    }
+
+    // Games often set near clip values that are fine on a flat screen but cause
+    // clipping right in front of your eyes in VR (cockpits, weapons, etc).
+    private void UpdateNearClip()
+    {
+        if (ModConfiguration.Instance.OverrideNearClip.Value)
+        {
+            if (_originalNearClip < 0f)
+            {
+                _originalNearClip = ParentCamera.nearClipPlane;
+            }
+
+            var nearClip = ModConfiguration.Instance.NearClipValue.Value;
+            ParentCamera.nearClipPlane = nearClip;
+            if (_childCamera != null) _childCamera.nearClipPlane = nearClip;
+        }
+        else if (_originalNearClip >= 0f)
+        {
+            ParentCamera.nearClipPlane = _originalNearClip;
+            if (_childCamera != null) _childCamera.nearClipPlane = _originalNearClip;
+            _originalNearClip = -1f;
         }
     }
 

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Reflection;
 using UnityEngine;
+using Uuvr.ModUi;
 using Uuvr.VrCamera;
 using Uuvr.VrTogglers;
 using Uuvr.VrUi;
@@ -15,13 +16,20 @@ public class UuvrCore: MonoBehaviour
     }
 #endif
 
+    public static UuvrCore? Instance { get; private set; }
+
     private readonly KeyboardKey _toggleVrKey = new (KeyboardKey.KeyCode.F3);
+    private readonly KeyboardKey _toggleMenuKey = new (KeyboardKey.KeyCode.F2);
+    private readonly KeyboardKey _recenterKey = new (KeyboardKey.KeyCode.F4);
     private float _originalFixedDeltaTime;
-    
+
     private VrUiManager? _vrUi;
     private ThingDisabler? _thingDisabler;
+    private UuvrMenu? _menu;
     private PropertyInfo? _refreshRateProperty;
     private VrTogglerManager? _vrTogglerManager;
+
+    public bool IsVrEnabled => _vrTogglerManager is { IsVrEnabled: true };
 
     public static void Create()
     {
@@ -30,18 +38,26 @@ public class UuvrCore: MonoBehaviour
 
     private void Awake()
     {
+        Instance = this;
         DontDestroyOnLoad(gameObject);
         gameObject.AddComponent<VrCameraManager>();
-        
-        // TODO: Emulate input.   
+
+        // TODO: Emulate input.
         // UuvrBehaviour.Create<UuvrInput>(transform);
     }
 
     private void OnDestroy()
     {
+        if (Instance == this) Instance = null;
+
         Debug.Log("UUVR has been destroyed. This shouldn't have happened. Recreating...");
-        
+
         Create();
+    }
+
+    public void ToggleVr()
+    {
+        _vrTogglerManager?.ToggleVr();
     }
 
     private void Start()
@@ -55,6 +71,7 @@ public class UuvrCore: MonoBehaviour
         
         _vrUi = UuvrBehaviour.Create<VrUiManager>(transform);
         _thingDisabler = UuvrBehaviour.Create<ThingDisabler>(transform);
+        _menu = UuvrBehaviour.Create<UuvrMenu>(transform);
 
         _vrTogglerManager = new VrTogglerManager();
 
@@ -63,8 +80,23 @@ public class UuvrCore: MonoBehaviour
 
     private void Update()
     {
-        if (_toggleVrKey.UpdateIsDown()) _vrTogglerManager?.ToggleVr();
+        UpdateHotkeys();
         UpdatePhysicsRate();
+    }
+
+    private void UpdateHotkeys()
+    {
+        var config = ModConfiguration.Instance;
+        if (config != null)
+        {
+            _toggleVrKey.Key = config.ToggleVrKey.Value;
+            _toggleMenuKey.Key = config.ToggleMenuKey.Value;
+            _recenterKey.Key = config.RecenterKey.Value;
+        }
+
+        if (_toggleVrKey.UpdateIsDown()) ToggleVr();
+        if (_toggleMenuKey.UpdateIsDown()) _menu?.ToggleOpen();
+        if (_recenterKey.UpdateIsDown()) VrRecenter.Recenter();
     }
 
     private void UpdatePhysicsRate()

@@ -55,6 +55,14 @@ public class ModConfiguration
     }
 
     public readonly ConfigFile Config;
+    public readonly ConfigEntry<KeyboardKey.KeyCode> ToggleVrKey;
+    public readonly ConfigEntry<KeyboardKey.KeyCode> ToggleMenuKey;
+    public readonly ConfigEntry<KeyboardKey.KeyCode> RecenterKey;
+    public readonly ConfigEntry<float> WorldScale;
+    public readonly ConfigEntry<bool> OverrideNearClip;
+    public readonly ConfigEntry<float> NearClipValue;
+    public readonly ConfigEntry<string> CameraNameAllowList;
+    public readonly ConfigEntry<string> CameraNameBlockList;
     public readonly ConfigEntry<CameraTrackingMode> CameraTracking;
     public readonly ConfigEntry<bool> RelativeCameraSetStereoView;
     public readonly ConfigEntry<int> VrCameraDepth;
@@ -93,6 +101,58 @@ public class ModConfiguration
             VrApi.OpenXr,
             "VR API to use. Depending on the game, some APIs might be unavailable, so UUVR will fall back to one that works.");
 #endif
+
+        ToggleMenuKey = config.Bind(
+            "Hotkeys",
+            "Toggle Menu Key",
+            KeyboardKey.KeyCode.F2,
+            "Keyboard key used to open and close the in-game UUVR menu.");
+
+        ToggleVrKey = config.Bind(
+            "Hotkeys",
+            "Toggle VR Key",
+            KeyboardKey.KeyCode.F3,
+            "Keyboard key used to turn VR mode on and off.");
+
+        RecenterKey = config.Bind(
+            "Hotkeys",
+            "Recenter Key",
+            KeyboardKey.KeyCode.F4,
+            "Keyboard key used to recenter the VR view.");
+
+        WorldScale = config.Bind(
+            "Camera",
+            "World Scale",
+            1f,
+            new ConfigDescription(
+                "Scales the world relative to the player. Higher values make the world bigger. Only affects relative and child camera tracking modes.",
+                new AcceptableValueRange<float>(0.1f, 10f)));
+
+        OverrideNearClip = config.Bind(
+            "Camera",
+            "Override Near Clip",
+            false,
+            "Overrides the camera near clipping plane. Useful when objects close to your face (like cockpits) get cut off.");
+
+        NearClipValue = config.Bind(
+            "Camera",
+            "Near Clip Value",
+            0.03f,
+            new ConfigDescription(
+                "Near clipping plane distance to use when 'Override Near Clip' is enabled.",
+                new AcceptableValueRange<float>(0.001f, 2f)));
+
+        CameraNameAllowList = config.Bind(
+            "Camera Filters",
+            "Only Use Cameras Named",
+            "",
+            "If not empty, only cameras whose name contains one of these values get used for VR. List of values separated by /. Example: 'MainCamera/PlayerCam'");
+
+        CameraNameBlockList = config.Bind(
+            "Camera Filters",
+            "Never Use Cameras Named",
+            "",
+            "Cameras whose name contains one of these values never get used for VR. List of values separated by /. Example: 'Minimap/Portrait'");
 
         CameraTracking = config.Bind(
             "Camera",

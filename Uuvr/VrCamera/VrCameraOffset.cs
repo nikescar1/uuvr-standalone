@@ -18,15 +18,33 @@ public class VrCameraOffset: UuvrBehaviour
         UpdateTransform();
     }
 
+    protected override void OnEnable()
+    {
+        base.OnEnable();
+        OnSettingChanged();
+    }
+
     protected override void OnSettingChanged()
     {
         base.OnSettingChanged();
         var config = ModConfiguration.Instance;
-        
+
         transform.localPosition = new Vector3(
             config.CameraPositionOffsetX.Value,
             config.CameraPositionOffsetY.Value,
             config.CameraPositionOffsetZ.Value);
+
+        ApplyWorldScale();
+    }
+
+    // Scaling the tracked camera's parent scales the whole experience:
+    // bigger parent scale means bigger IPD, which makes the world feel smaller.
+    // So we invert the configured world scale to get the expected result.
+    private void ApplyWorldScale()
+    {
+        var worldScale = Mathf.Clamp(ModConfiguration.Instance.WorldScale.Value, 0.1f, 10f);
+        var parentScale = 1f / worldScale;
+        transform.localScale = new Vector3(parentScale, parentScale, parentScale);
     }
 
     private void Update()

@@ -36,7 +36,9 @@ public class VrCameraManager: MonoBehaviour
             var camera = _allCameras[index];
             if (camera == null || camera.targetTexture != null || camera.stereoTargetEye == StereoTargetEyeMask.None) continue;
             if (VrCamera.VrCameras.Contains(camera) || VrCamera.IgnoredCameras.Contains(camera)) continue;
-            
+            // Not adding filtered cameras to IgnoredCameras, so that filter changes can pick them up later.
+            if (!CameraFilter.ShouldUseCamera(camera)) continue;
+
             Debug.Log($"creating vr camera {camera.name}");
             camera.gameObject.AddComponent<VrCamera>();
         }
