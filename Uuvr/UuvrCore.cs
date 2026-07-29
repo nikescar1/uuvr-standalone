@@ -22,6 +22,8 @@ public class UuvrCore: MonoBehaviour
     private readonly KeyboardKey _toggleMenuKey = new (KeyboardKey.KeyCode.F2);
     private readonly KeyboardKey _recenterKey = new (KeyboardKey.KeyCode.F4);
     private float _originalFixedDeltaTime;
+    private float _vrStartTime = float.MaxValue;
+    private bool _vrStartAttempted;
 
     private VrUiManager? _vrUi;
     private ThingDisabler? _thingDisabler;
@@ -79,7 +81,15 @@ public class UuvrCore: MonoBehaviour
 
     public void ToggleVr()
     {
-        _vrTogglerManager?.ToggleVr();
+        // Nothing to toggle yet when automatic startup is off or hasn't happened;
+        // treat the first press as "start VR now".
+        if (_vrTogglerManager == null)
+        {
+            StartVr();
+            return;
+        }
+
+        _vrTogglerManager.ToggleVr();
     }
 
     private void Start()
@@ -91,23 +101,21 @@ public class UuvrCore: MonoBehaviour
 
         _refreshRateProperty = xrDeviceType?.GetProperty("refreshRate");
         
+        UuvrTrace.Log("core starting up");
+
         // Each part is created independently, so a game where one of them can't be set up
-        // still gets everything else. Starting VR is the important one, so it goes last
-        // and never depends on the UI having worked.
+        // still gets everything else.
         _vrUi = TryCreate<VrUiManager>("VR UI");
         _thingDisabler = TryCreate<ThingDisabler>("thing disabler");
         _menu = TryCreate<UuvrMenu>("in-game menu");
 
-        try
-        {
-            _vrTogglerManager = new VrTogglerManager();
-        }
-        catch (Exception exception)
-        {
-            Debug.LogError($"UUVR: failed to set up VR: {exception}");
-        }
+        // VR deliberately isn't started here. Bringing up an XR runtime before the game has
+        // finished loading its first scene can take the whole process down at the native
+        // level, so it waits until the game is actually running (see UpdateVrStartup).
+        _vrStartTime = Time.unscaledTime + Mathf.Max(0f, ModConfiguration.Instance.VrStartDelay.Value);
 
         SetPositionTrackingEnabled(false);
+        UuvrTrace.Log("core started");
     }
 
     private T? TryCreate<T>(string description) where T : UuvrBehaviour
@@ -118,15 +126,48 @@ public class UuvrCore: MonoBehaviour
         }
         catch (Exception exception)
         {
-            Debug.LogError($"UUVR: failed to create the {description}, continuing without it: {exception}");
+            UuvrTrace.LogError($"failed to create the {description}, continuing without it: {exception}");
             return null;
         }
     }
 
     private void Update()
     {
+        UpdateVrStartup();
         UpdateHotkeys();
         UpdatePhysicsRate();
+    }
+
+    private void UpdateVrStartup()
+    {
+        if (_vrTogglerManager != null || _vrStartAttempted) return;
+        if (!ModConfiguration.Instance.AutoStartVr.Value) return;
+        if (Time.unscaledTime < _vrStartTime) return;
+
+        StartVr();
+    }
+
+    // Also used by the toggle VR key, so VR can still be started by hand when
+    // automatic startup is turned off (or when it failed).
+    private void StartVr()
+    {
+        if (_vrStartAttempted && _vrTogglerManager == null)
+        {
+            UuvrTrace.Log("retrying VR startup");
+        }
+
+        _vrStartAttempted = true;
+
+        try
+        {
+            UuvrTrace.Log("starting VR");
+            _vrTogglerManager = new VrTogglerManager();
+            UuvrTrace.Log("VR startup finished");
+        }
+        catch (Exception exception)
+        {
+            UuvrTrace.LogError($"failed to start VR: {exception}");
+        }
     }
 
     private void UpdateHotkeys()

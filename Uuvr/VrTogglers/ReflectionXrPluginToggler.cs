@@ -27,17 +27,18 @@ public class ReflectionXrPluginToggler : VrToggler
 
     protected override bool SetUp()
     {
+        UuvrTrace.Log("looking for XR Plugin Management types");
         var managerType = FindType("UnityEngine.XR.Management.XRManagerSettings");
         if (managerType == null)
         {
-            Debug.LogWarning("UUVR: this game doesn't include Unity's XR Plugin Management, so VR can't be started this way.");
+            UuvrTrace.LogWarning("this game doesn't include Unity's XR Plugin Management, so VR can't be started this way.");
             return false;
         }
 
         _managerSettings = GetGameManagerSettings(managerType) ?? CreateManagerSettings(managerType);
         if (_managerSettings == null)
         {
-            Debug.LogError("UUVR: failed to obtain an XRManagerSettings instance.");
+            UuvrTrace.LogError("failed to obtain an XRManagerSettings instance.");
             return false;
         }
 
@@ -48,22 +49,22 @@ public class ReflectionXrPluginToggler : VrToggler
         var initializeLoaderSync = managerType.GetMethod("InitializeLoaderSync");
         if (initializeLoaderSync == null)
         {
-            Debug.LogError("UUVR: XRManagerSettings.InitializeLoaderSync not found.");
+            UuvrTrace.LogError("XRManagerSettings.InitializeLoaderSync not found.");
             return false;
         }
 
-        Debug.Log("UUVR: initializing XR loader...");
+        UuvrTrace.Log("calling InitializeLoaderSync (if the game dies here, the XR runtime crashed it)");
         initializeLoaderSync.Invoke(_managerSettings, null);
 
         var activeLoader = managerType.GetProperty("activeLoader")?.GetValue(_managerSettings, null);
         if (activeLoader == null)
         {
-            Debug.LogError(
-                "UUVR: XR loader failed to initialize. Make sure SteamVR (or your OpenXR runtime) is running before starting the game.");
+            UuvrTrace.LogError(
+                "XR loader failed to initialize. Make sure SteamVR (or your OpenXR runtime) is running before starting the game.");
             return false;
         }
 
-        Debug.Log($"UUVR: XR loader initialized ({activeLoader.GetType().Name}).");
+        UuvrTrace.Log($"XR loader initialized ({activeLoader.GetType().Name})");
         return true;
     }
 
@@ -83,16 +84,16 @@ public class ReflectionXrPluginToggler : VrToggler
 
             if (CountLoaders(managerType, manager) == 0)
             {
-                Debug.Log("UUVR: the game's XR settings have no loaders configured, setting up our own.");
+                UuvrTrace.Log("the game's XR settings have no loaders configured, setting up our own");
                 return null;
             }
 
-            Debug.Log("UUVR: using the XR settings that the game already ships.");
+            UuvrTrace.Log("using the XR settings that the game already ships");
             return manager;
         }
         catch (Exception exception)
         {
-            Debug.LogWarning($"UUVR: couldn't read the game's XR settings ({exception.Message}), setting up our own.");
+            UuvrTrace.LogWarning($"couldn't read the game's XR settings ({exception.Message}), setting up our own");
             return null;
         }
     }
@@ -105,17 +106,18 @@ public class ReflectionXrPluginToggler : VrToggler
             var manager = CreateScriptableObject(managerType);
             if (manager == null) return null;
 
+            UuvrTrace.Log("creating our own XRManagerSettings");
             var loader = CreateLoader();
             if (loader == null)
             {
-                Debug.LogError(
-                    "UUVR: no usable XR loader found in this game (looked for OpenXR and OpenVR). This game most likely can't run modern VR through UUVR yet.");
+                UuvrTrace.LogError(
+                    "no usable XR loader found in this game (looked for OpenXR and OpenVR). This game most likely can't run modern VR through UUVR yet.");
                 return null;
             }
 
             if (!AddLoader(managerType, manager, loader))
             {
-                Debug.LogError("UUVR: failed to register the XR loader with XRManagerSettings.");
+                UuvrTrace.LogError("failed to register the XR loader with XRManagerSettings.");
                 return null;
             }
 
@@ -123,7 +125,7 @@ public class ReflectionXrPluginToggler : VrToggler
         }
         catch (Exception exception)
         {
-            Debug.LogError($"UUVR: failed to create XR manager settings: {exception}");
+            UuvrTrace.LogError($"failed to create XR manager settings: {exception}");
             return null;
         }
     }
@@ -143,10 +145,12 @@ public class ReflectionXrPluginToggler : VrToggler
             var loaderType = FindType(loaderTypeName);
             if (loaderType == null) continue;
 
+            UuvrTrace.Log($"creating XR loader {loaderTypeName}");
+
             var loader = CreateScriptableObject(loaderType);
             if (loader == null) continue;
 
-            Debug.Log($"UUVR: using XR loader {loaderTypeName}.");
+            UuvrTrace.Log($"created XR loader {loaderTypeName}");
             return loader;
         }
 
@@ -185,7 +189,7 @@ public class ReflectionXrPluginToggler : VrToggler
             }
             catch (Exception exception)
             {
-                Debug.LogWarning($"UUVR: TryAddLoader failed ({exception.Message}), falling back to the loaders list.");
+                UuvrTrace.LogWarning($"TryAddLoader failed ({exception.Message}), falling back to the loaders list");
             }
         }
 
@@ -241,13 +245,14 @@ public class ReflectionXrPluginToggler : VrToggler
 
         try
         {
+            UuvrTrace.Log("calling StartSubsystems (if the game dies here, the XR runtime crashed it)");
             _startSubsystems?.Invoke(_managerSettings, null);
-            Debug.Log("UUVR: XR subsystems started.");
+            UuvrTrace.Log("XR subsystems started");
             return true;
         }
         catch (Exception exception)
         {
-            Debug.LogError($"UUVR: failed to start XR subsystems: {exception}");
+            UuvrTrace.LogError($"failed to start XR subsystems: {exception}");
             return false;
         }
     }
@@ -264,7 +269,7 @@ public class ReflectionXrPluginToggler : VrToggler
         }
         catch (Exception exception)
         {
-            Debug.LogError($"UUVR: failed to stop XR subsystems: {exception}");
+            UuvrTrace.LogError($"failed to stop XR subsystems: {exception}");
             return false;
         }
     }

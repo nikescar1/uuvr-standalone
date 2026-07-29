@@ -57,6 +57,8 @@ public class ModConfiguration
     }
 
     public readonly ConfigFile Config;
+    public readonly ConfigEntry<bool> AutoStartVr;
+    public readonly ConfigEntry<float> VrStartDelay;
     public readonly ConfigEntry<KeyboardKey.KeyCode> ToggleVrKey;
     public readonly ConfigEntry<KeyboardKey.KeyCode> ToggleMenuKey;
     public readonly ConfigEntry<KeyboardKey.KeyCode> RecenterKey;
@@ -142,6 +144,20 @@ public class ModConfiguration
             VrApi.OpenXr,
             "VR API to use. Depending on the game, some APIs might be unavailable, so UUVR will fall back to one that works.");
 #endif
+
+        AutoStartVr = config.Bind(
+            "General",
+            "Start VR Automatically",
+            true,
+            "Turn VR on by itself shortly after the game starts. If a game crashes or hangs on startup with UUVR installed, set this to false; you can then start VR yourself with the toggle VR key once the game is running.");
+
+        VrStartDelay = config.Bind(
+            "General",
+            "VR Start Delay",
+            5f,
+            new ConfigDescription(
+                "Seconds to wait after the game starts before turning VR on. Starting VR before the game has finished loading can crash it, so raise this if the game dies on startup.",
+                new AcceptableValueRange<float>(0f, 120f)));
 
         ToggleMenuKey = config.Bind(
             "Hotkeys",
