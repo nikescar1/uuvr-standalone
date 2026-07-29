@@ -2,6 +2,7 @@
 using System.Reflection;
 using BepInEx;
 using HarmonyLib;
+using Uuvr.ModUi;
 using Uuvr.VrCamera;
 using Uuvr.VrUi;
 using Uuvr.VrUi.PatchModes;
@@ -20,7 +21,7 @@ namespace Uuvr;
     "raicuparta.uuvr-modern",
 #endif
     "UUVR",
-    "0.4.0")]
+    PluginVersion)]
 public class UuvrPlugin
 #if CPP
 : BasePlugin
@@ -28,6 +29,8 @@ public class UuvrPlugin
 : BaseUnityPlugin
 #endif
 {
+    public const string PluginVersion = "0.5.0";
+
     private static UuvrPlugin _instance;
     public static string ModFolderPath { get; private set; }
     
@@ -59,6 +62,7 @@ public class UuvrPlugin
        ClassInjector.RegisterTypeInIl2Cpp<VrCameraManager>();
        ClassInjector.RegisterTypeInIl2Cpp<CanvasRedirectPatchMode>();
        ClassInjector.RegisterTypeInIl2Cpp<ScreenMirrorPatchMode>();
+       ClassInjector.RegisterTypeInIl2Cpp<UuvrMenu>();
 #endif
 
         UuvrCore.Create();

@@ -1,0 +1,63 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, 'claude/**' ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+# Needed so the release step can create GitHub releases with the default token.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build mod flavors
+        run: |
+          dotnet build Uuvr/Uuvr.csproj -c legacy-mono
+          dotnet build Uuvr.Patcher/Uuvr.Patcher.csproj -c legacy-mono
+          dotnet build Uuvr/Uuvr.csproj -c modern-mono
+          dotnet build Uuvr.Patcher/Uuvr.Patcher.csproj -c modern-mono
+          dotnet build Uuvr/Uuvr.csproj -c legacy-il2cpp
+          dotnet build Uuvr.Patcher/Uuvr.Patcher.csproj -c legacy-il2cpp
+
+      - name: Publish loader
+        run: >
+          dotnet publish Uuvr.Loader/Uuvr.Loader.csproj -c Release -r win-x64
+          --self-contained
+          -p:PublishSingleFile=true
+          -p:EnableCompressionInSingleFile=true
+
+      - name: Download BepInEx runtimes
+        shell: pwsh
+        run: ./scripts/download-runtimes.ps1
+
+      - name: Assemble standalone package
+        shell: pwsh
+        run: ./scripts/assemble-package.ps1
+
+      - name: Zip package
+        shell: pwsh
+        run: Compress-Archive -Path dist/UUVR-Standalone/* -DestinationPath dist/UUVR-Standalone.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UUVR-Standalone
+          path: dist/UUVR-Standalone.zip
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/UUVR-Standalone.zip
+          generate_release_notes: true

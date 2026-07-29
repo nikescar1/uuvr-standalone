@@ -6,7 +6,9 @@ namespace Uuvr.VrTogglers;
 public class VrTogglerManager
 {
     private VrToggler _toggler;
-    
+
+    public bool IsVrEnabled => _toggler is { IsVrEnabled: true };
+
     public VrTogglerManager()
     {
         SetUpToggler();
