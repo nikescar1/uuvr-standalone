@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <UseWindowsForms>true</UseWindowsForms>
+        <!-- Lets the loader build on non-Windows machines (CI). -->
+        <EnableWindowsTargeting>true</EnableWindowsTargeting>
+        <AssemblyName>UuvrLoader</AssemblyName>
+        <RootNamespace>Uuvr.Loader</RootNamespace>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Version>0.5.0</Version>
+        <Configurations>Debug;Release;legacy-il2cpp;modern-il2cpp;legacy-mono;modern-mono</Configurations>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+
+    <!-- The flavor configurations only exist so this project can live in the same solution;
+         they all behave like Release. -->
+    <PropertyGroup Condition=" '$(Configuration)' != 'Debug' ">
+        <Optimize>true</Optimize>
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+</Project>
