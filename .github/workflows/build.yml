@@ -7,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Needed so the release step can create GitHub releases with the default token.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
