@@ -60,14 +60,66 @@ public class Patcher
         CopyFilesToGame(patcherPath, dataPath);
 
 #if LEGACY
-        string globalSettingsFilePath = GetGlobalSettingsFilePath(dataPath);
-        string globalSettingsBackupPath = CreateGlobalSettingsBackup(globalSettingsFilePath);
-        string classDataPath = Path.Combine(patcherPath, "classdata.tpk");
-        PatchVR(globalSettingsBackupPath, globalSettingsFilePath, classDataPath);
+        TryPatchLegacyVrDevices(dataPath, patcherPath);
 #endif
 
         Console.WriteLine("");
         Console.WriteLine("Installed successfully, probably.");
+    }
+
+    // Adding VR devices to the global settings file is only meaningful for Unity 2019 and older,
+    // where the engine reads the enabled VR device list at startup. Unity 2020+ uses XR plugin
+    // management instead, and stores its settings inside a compressed bundle we can't patch this way.
+    // Either way a failure here must not abort the patcher: UUVR still enables VR at runtime.
+    private static void TryPatchLegacyVrDevices(string dataPath, string patcherPath)
+    {
+        try
+        {
+            var globalSettingsFilePath = GetGlobalSettingsFilePath(dataPath);
+
+            if (IsUnityBundle(globalSettingsFilePath))
+            {
+                Console.WriteLine(
+                    $"'{Path.GetFileName(globalSettingsFilePath)}' is a compressed Unity bundle, which means this is most likely a Unity 2020 or newer game.");
+                Console.WriteLine(
+                    "Skipping the legacy VR device patch, since modern Unity enables VR via the XR plugin system instead.");
+                return;
+            }
+
+            var globalSettingsBackupPath = CreateGlobalSettingsBackup(globalSettingsFilePath);
+            var classDataPath = Path.Combine(patcherPath, "classdata.tpk");
+            PatchVR(globalSettingsBackupPath, globalSettingsFilePath, classDataPath);
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"Failed to apply the legacy VR device patch: {exception.Message}");
+            Console.WriteLine("Continuing anyway; UUVR will still try to enable VR at runtime.");
+        }
+    }
+
+    // Bundles start with a "Unity*" signature string, plain serialized asset files don't.
+    private static bool IsUnityBundle(string filePath)
+    {
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            var header = new byte[12];
+            var read = stream.Read(header, 0, header.Length);
+            if (read <= 0) return false;
+
+            var headerText = System.Text.Encoding.ASCII.GetString(header, 0, read);
+
+            foreach (var signature in new[] { "UnityFS", "UnityWeb", "UnityRaw", "UnityArchive" })
+            {
+                if (headerText.StartsWith(signature, StringComparison.Ordinal)) return true;
+            }
+
+            return false;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private static string GetGlobalSettingsFilePath(string dataPath)

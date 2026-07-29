@@ -240,7 +240,8 @@ public class ModInstaller
             }
             if (game.Backend == UnityBackend.Il2Cpp && generation == UnityGeneration.Modern)
             {
-                _log("Note: modern IL2CPP games are experimental territory for UUVR; results vary a lot per game.");
+                _log("Note: this is a modern (Unity 2020+) IL2CPP game, which UUVR supports only experimentally.");
+                _log("It will try to start VR through the game's own XR Plugin Management. If VR never turns on, check BepInEx/LogOutput.log for lines starting with 'UUVR:' — they say exactly where it stopped.");
             }
 
             return new InstallResult { Success = true, Message = $"UUVR installed ({flavor})." };
@@ -337,5 +338,5 @@ public class ModInstaller
 
 public static class LoaderVersion
 {
-    public const string Value = "0.5.0";
+    public const string Value = "0.5.1";
 }

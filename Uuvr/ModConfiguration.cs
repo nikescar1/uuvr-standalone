@@ -1,4 +1,6 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.ComponentModel;
+using System.Globalization;
 using BepInEx.Configuration;
 using UnityEngine;
 
@@ -88,9 +90,48 @@ public class ModConfiguration
     public readonly ConfigEntry<VrApi> PreferredVrApi;
 #endif
 
+    // BepInEx only knows how to serialize primitives, so Vector3 settings need a converter
+    // registered before anything binds them, or the whole plugin fails to load.
+    private static void RegisterVector3Converter()
+    {
+        try
+        {
+            if (TomlTypeConverter.CanConvert(typeof(Vector3))) return;
+
+            TomlTypeConverter.AddConverter(typeof(Vector3), new BepInEx.Configuration.TypeConverter
+            {
+                ConvertToString = (value, type) =>
+                {
+                    var vector = (Vector3)value;
+                    return string.Format(
+                        CultureInfo.InvariantCulture, "{0}, {1}, {2}", vector.x, vector.y, vector.z);
+                },
+                ConvertToObject = (value, type) => ParseVector3(value),
+            });
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"UUVR: failed to register the Vector3 config converter: {exception}");
+        }
+    }
+
+    // Accepts "x, y, z" and Unity's own "(x, y, z)" formatting.
+    private static Vector3 ParseVector3(string value)
+    {
+        var parts = value.Trim().Trim('(', ')').Split(',');
+        if (parts.Length != 3) throw new FormatException($"Expected 3 comma-separated numbers, got '{value}'");
+
+        return new Vector3(
+            float.Parse(parts[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture),
+            float.Parse(parts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture),
+            float.Parse(parts[2].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture));
+    }
+
     public ModConfiguration(ConfigFile config)
     {
         Instance = this;
+
+        RegisterVector3Converter();
 
         Config = config;
 
