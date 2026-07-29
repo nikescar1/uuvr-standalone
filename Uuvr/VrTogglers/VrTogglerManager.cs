@@ -1,5 +1,6 @@
 ﻿using System;
 using BepInEx.Configuration;
+using UnityEngine;
 
 namespace Uuvr.VrTogglers;
 
@@ -40,7 +41,18 @@ public class VrTogglerManager
                 throw new ArgumentOutOfRangeException();
         }
 #else
-        _toggler = new LegacyOpenVrToggler();
+        // The legacy build also gets used for modern IL2CPP games, where Unity's built-in VR path
+        // no longer exists. Those games need XR plugin management, which we can only reach by reflection.
+        if (ReflectionXrPluginToggler.IsSupported())
+        {
+            Debug.Log("UUVR: this game has XR Plugin Management, using it to start VR.");
+            _toggler = new ReflectionXrPluginToggler();
+        }
+        else
+        {
+            Debug.Log("UUVR: no XR Plugin Management found, using the legacy VR path.");
+            _toggler = new LegacyOpenVrToggler();
+        }
 #endif
     }
 

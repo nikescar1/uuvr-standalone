@@ -77,7 +77,7 @@ Support depends on the game's Unity version and scripting backend:
 | `uuvr-mono-legacy` | ≤ 2019 | Mono | Best supported |
 | `uuvr-mono-modern` | ≥ 2020 | Mono | Well supported (OpenXR or OpenVR) |
 | `uuvr-il2cpp-legacy` | ≤ 2019 | IL2CPP | Supported |
-| modern IL2CPP | ≥ 2020 | IL2CPP | Experimental — the legacy IL2CPP build is used; results vary |
+| modern IL2CPP | ≥ 2020 | IL2CPP | Experimental — the legacy IL2CPP build is used, driving the game's own XR Plugin Management by reflection. Only works if the game ships XR plugins |
 
 Tips when a game misbehaves:
 
@@ -88,6 +88,8 @@ Tips when a game misbehaves:
 - If close objects get cut off, enable **Override Near Clip**.
 - IL2CPP games take a few minutes on first launch while BepInEx generates interop
   assemblies — that's normal.
+- If VR never turns on, open `BepInEx/LogOutput.log` and look for lines starting with
+  `UUVR:` — they report which VR path was chosen and where it failed.
 
 ## Building from source
 
