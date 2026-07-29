@@ -6,6 +6,11 @@ on:
     tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to release as (e.g. v0.5.0). Creates the tag at the built commit. Leave empty for a plain build."
+        required: false
+        default: ""
 
 # Needed so the release step can create GitHub releases with the default token.
 permissions:
@@ -56,8 +61,10 @@ jobs:
           path: dist/UUVR-Standalone.zip
 
       - name: Create release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         uses: softprops/action-gh-release@v2
         with:
+          # Empty on tag pushes, where the pushed tag is used instead.
+          tag_name: ${{ inputs.release_tag }}
           files: dist/UUVR-Standalone.zip
           generate_release_notes: true
