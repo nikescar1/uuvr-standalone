@@ -1,0 +1,4 @@
+
+# API check tool build output
+/tools/**/bin/
+/tools/**/obj/

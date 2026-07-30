@@ -19,6 +19,19 @@ public class SubsystemXrToggler : VrToggler
     private object? _displaySubsystem;
     private object? _inputSubsystem;
 
+    // Member names below were checked against the interop assemblies of a real Unity 2021
+    // IL2CPP game, so they're the actual API rather than what the public docs imply.
+    //
+    // There is no public Create() on a descriptor: IntegratedSubsystemDescriptor<T> exposes
+    // CreateImpl(), and ISubsystemDescriptor.Create is an explicit interface implementation,
+    // whose reflected name therefore carries the interface prefix.
+    private static readonly string[] CreateMethodNames =
+    {
+        "CreateImpl",
+        "UnityEngine.ISubsystemDescriptor.Create",
+        "Create",
+    };
+
     public static bool IsSupported()
     {
         return UuvrTypeFinder.FindType("UnityEngine.SubsystemManager") != null &&
@@ -143,16 +156,50 @@ public class SubsystemXrToggler : VrToggler
         }
     }
 
+    private static MethodInfo? FindCreateMethod(Type descriptorType)
+    {
+        foreach (var methodName in CreateMethodNames)
+        {
+            try
+            {
+                var method = descriptorType.GetMethod(
+                    methodName,
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                    null, Type.EmptyTypes, null);
+                if (method != null) return method;
+            }
+            catch (Exception)
+            {
+                // Ambiguous or inaccessible; try the next name.
+            }
+        }
+
+        return null;
+    }
+
+    // 'id' is a property on the descriptor interface but reaches the concrete types as get_id,
+    // so try both rather than assuming.
     private static string GetDescriptorId(object descriptor)
     {
+        var descriptorType = descriptor.GetType();
+
         try
         {
-            return descriptor.GetType().GetProperty("id")?.GetValue(descriptor, null) as string ?? "";
+            if (descriptorType.GetProperty("id")?.GetValue(descriptor, null) is string id) return id;
         }
         catch (Exception)
         {
-            return "";
         }
+
+        try
+        {
+            if (descriptorType.GetMethod("get_id", Type.EmptyTypes)?.Invoke(descriptor, null) is string id) return id;
+        }
+        catch (Exception)
+        {
+        }
+
+        return "";
     }
 
     private static object? CreateSubsystem(List<object> descriptors, string descriptorTypeName, string description)
@@ -161,20 +208,25 @@ public class SubsystemXrToggler : VrToggler
         {
             if (!IsOfType(descriptor.GetType(), descriptorTypeName)) continue;
 
+            var createMethod = FindCreateMethod(descriptor.GetType());
+            if (createMethod == null)
+            {
+                UuvrTrace.LogWarning(
+                    $"{descriptor.GetType().Name} has none of the known creation methods ({string.Join(", ", CreateMethodNames)}).");
+                continue;
+            }
+
             try
             {
-                var createMethod = descriptor.GetType().GetMethod("Create");
-                if (createMethod == null)
+                UuvrTrace.Log($"creating {description} subsystem from '{GetDescriptorId(descriptor)}' via {createMethod.Name}");
+                var subsystem = createMethod.Invoke(descriptor, null);
+                if (subsystem == null)
                 {
-                    UuvrTrace.LogWarning($"{descriptor.GetType().Name} has no Create method.");
+                    UuvrTrace.LogWarning($"{createMethod.Name} returned null for the {description} subsystem.");
                     continue;
                 }
 
-                UuvrTrace.Log($"creating {description} subsystem from '{GetDescriptorId(descriptor)}'");
-                var subsystem = createMethod.Invoke(descriptor, null);
-                if (subsystem == null) continue;
-
-                UuvrTrace.Log($"created {description} subsystem");
+                UuvrTrace.Log($"created {description} subsystem ({subsystem.GetType().Name})");
                 return subsystem;
             }
             catch (Exception exception)

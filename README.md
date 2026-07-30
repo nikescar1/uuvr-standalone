@@ -77,7 +77,20 @@ Support depends on the game's Unity version and scripting backend:
 | `uuvr-mono-legacy` | ≤ 2019 | Mono | Best supported |
 | `uuvr-mono-modern` | ≥ 2020 | Mono | Well supported (OpenXR or OpenVR) |
 | `uuvr-il2cpp-legacy` | ≤ 2019 | IL2CPP | Supported |
-| modern IL2CPP | ≥ 2020 | IL2CPP | Experimental — the legacy IL2CPP build is used, driving the game's own XR Plugin Management by reflection. Only works if the game ships XR plugins |
+| modern IL2CPP | ≥ 2020 | IL2CPP | Experimental — the legacy IL2CPP build is used, starting VR through Unity's XR subsystem API by reflection (see below) |
+
+### How VR gets started
+
+Unity has no single way to turn VR on, so UUVR tries these in order and logs which it picked:
+
+1. **XR Plugin Management** — for games that ship Unity's XR packages.
+2. **XR subsystems** — for modern games built *without* the XR packages. XR Plugin
+   Management is only a wrapper around this engine-level API, so UUVR does what the
+   package would have done: look up the subsystem descriptors registered by the native
+   XR plugins it installs, create the display and input subsystems, and start them.
+3. **Legacy built-in VR** — Unity 2019 and older only; removed from the engine in 2020.
+
+`VR Startup Method` in the config forces one of these if the automatic choice picks badly.
 
 Tips when a game misbehaves:
 
