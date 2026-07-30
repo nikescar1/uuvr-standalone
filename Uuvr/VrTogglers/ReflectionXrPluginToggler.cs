@@ -22,13 +22,13 @@ public class ReflectionXrPluginToggler : VrToggler
 
     public static bool IsSupported()
     {
-        return FindType("UnityEngine.XR.Management.XRManagerSettings") != null;
+        return UuvrTypeFinder.FindType("UnityEngine.XR.Management.XRManagerSettings") != null;
     }
 
     protected override bool SetUp()
     {
         UuvrTrace.Log("looking for XR Plugin Management types");
-        var managerType = FindType("UnityEngine.XR.Management.XRManagerSettings");
+        var managerType = UuvrTypeFinder.FindType("UnityEngine.XR.Management.XRManagerSettings");
         if (managerType == null)
         {
             UuvrTrace.LogWarning("this game doesn't include Unity's XR Plugin Management, so VR can't be started this way.");
@@ -74,7 +74,7 @@ public class ReflectionXrPluginToggler : VrToggler
     {
         try
         {
-            var generalSettingsType = FindType("UnityEngine.XR.Management.XRGeneralSettings");
+            var generalSettingsType = UuvrTypeFinder.FindType("UnityEngine.XR.Management.XRGeneralSettings");
             var instance = generalSettingsType?.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null, null);
             if (instance == null) return null;
@@ -142,7 +142,7 @@ public class ReflectionXrPluginToggler : VrToggler
 
         foreach (var loaderTypeName in loaderTypeNames)
         {
-            var loaderType = FindType(loaderTypeName);
+            var loaderType = UuvrTypeFinder.FindType(loaderTypeName);
             if (loaderType == null) continue;
 
             UuvrTrace.Log($"creating XR loader {loaderTypeName}");
@@ -208,35 +208,6 @@ public class ReflectionXrPluginToggler : VrToggler
 #else
         return ScriptableObject.CreateInstance(type);
 #endif
-    }
-
-    // Searches every loaded assembly, since the XR assemblies are named differently
-    // depending on Unity version and scripting backend.
-    private static Type? FindType(string typeName)
-    {
-        foreach (var assemblySuffix in new[]
-                 {
-                     ", Unity.XR.Management", ", Unity.XR.OpenXR", ", Unity.XR.OpenVR", "",
-                 })
-        {
-            var type = Type.GetType(typeName + assemblySuffix);
-            if (type != null) return type;
-        }
-
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            try
-            {
-                var type = assembly.GetType(typeName);
-                if (type != null) return type;
-            }
-            catch (Exception)
-            {
-                // Some assemblies throw on reflection; just keep looking.
-            }
-        }
-
-        return null;
     }
 
     protected override bool EnableVr()

@@ -43,6 +43,8 @@ public class VrTogglerManager
 #else
         // The legacy build also gets used for modern IL2CPP games, where Unity's built-in VR path
         // no longer exists. Those games need XR plugin management, which we can only reach by reflection.
+        XrCapabilityReport.Log();
+
         if (ReflectionXrPluginToggler.IsSupported())
         {
             UuvrTrace.Log("this game has XR Plugin Management, using it to start VR");
@@ -50,7 +52,7 @@ public class VrTogglerManager
         }
         else
         {
-            UuvrTrace.Log("no XR Plugin Management found, using the legacy VR path");
+            UuvrTrace.Log("no XR Plugin Management found, falling back to the legacy VR path (only works on Unity 2019 and older)");
             _toggler = new LegacyOpenVrToggler();
         }
 #endif
