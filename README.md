@@ -101,10 +101,12 @@ Unity has no single way to turn VR on, so UUVR tries these in order and logs whi
 
 Tips when a game misbehaves:
 
-- **VR works but everything is a flat, empty colour** (the game's UI still draws, and the
-  view moves with your head): the scene is being culled away. Change **Camera Tracking
-  Mode** to `Child`. `Relative Matrix` overrides the camera's view matrix, which breaks
-  culling in some games — modern Unity games especially.
+- **VR works but everything is a flat, empty colour** (the view still moves with your
+  head): the scene is being culled away. Change **Camera Tracking Mode** to `Child`, with
+  `F5` or in the menu. `Relative Matrix` overrides the camera's view matrix, which breaks
+  culling in some games — modern Unity games especially. Modern games now default to
+  `Child`, and configs written by an older UUVR are moved over automatically unless you
+  picked a mode yourself.
 - Try a different **Camera Tracking Mode** in the menu (some games need `Child`,
   others `Relative Matrix`/`Relative Transform`).
 - If the image is black or missing, enable **Override Depth** and raise the value.
