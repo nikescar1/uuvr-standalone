@@ -1,4 +1,5 @@
-﻿#if CPP
+﻿using System;
+#if CPP
 using Il2CppSystem.Collections.Generic;
 #else
 using System.Collections.Generic;
@@ -29,6 +30,8 @@ public class VrCamera : UuvrBehaviour
     private UuvrPoseDriver? _childCameraPoseDriver;
     private LineRenderer _forwardLine;
     private float _originalNearClip = -1f;
+    private bool _relativeMatrixApplied;
+    private bool _stereoViewMatrixApplied;
     // private int _originalCullingMask = -2;
 
 #if CPP
@@ -65,6 +68,9 @@ public class VrCamera : UuvrBehaviour
 
     private void OnDestroy()
     {
+        // Toggling VR off destroys these, and an overridden view matrix would otherwise
+        // stay on the game's own camera and leave it broken in flat mode too.
+        ResetCameraMatrices();
         VrCameras.Remove(ParentCamera);
     }
 
@@ -179,24 +185,59 @@ public class VrCamera : UuvrBehaviour
 
     private void UpdateRelativeMatrix()
     {
-        if (ModConfiguration.Instance.CameraTracking.Value != ModConfiguration.CameraTrackingMode.RelativeMatrix) return;
-        
+        if (ModConfiguration.Instance.CameraTracking.Value != ModConfiguration.CameraTrackingMode.RelativeMatrix)
+        {
+            // Overriding worldToCameraMatrix is sticky: Unity keeps using the value until it's
+            // explicitly reset. Without this, switching to another tracking mode leaves the
+            // camera rendering (and culling) through the stale matrix, so a game stuck showing
+            // nothing but sky stays stuck even after picking the mode that would have fixed it.
+            ResetCameraMatrices();
+            return;
+        }
+
         var eye = ParentCamera.stereoActiveEye == Camera.MonoOrStereoscopicEye.Left ? Camera.StereoscopicEye.Left : Camera.StereoscopicEye.Right;
-       
+
         // A bit confused by this.
         // worldToCameraMatrix by itself almost works perfectly, but it breaks culling.
         // I expected SetStereoViewMatrix by itself to be enough, but it was even more broken (although culling did work).
         // So I'm just doing both I guess.
         ParentCamera.worldToCameraMatrix = _childCamera.GetStereoViewMatrix(eye);
+        _relativeMatrixApplied = true;
 
         if (ModConfiguration.Instance.RelativeCameraSetStereoView.Value)
         {
             // Some times setting worldToCameraMatrix is enough, some times not. I'm not sure why, need to learn more.
             // Some times it's actually better not to call SetStereoViewMatrix, since it messes up the shadows. Like in Aragami.
             ParentCamera.SetStereoViewMatrix(eye, ParentCamera.worldToCameraMatrix);
+            _stereoViewMatrixApplied = true;
         }
-        
-        // TODO: reset camera matrices and everything else on disabling VR
+    }
+
+    private void ResetCameraMatrices()
+    {
+        if (!_relativeMatrixApplied || ParentCamera == null) return;
+
+        _relativeMatrixApplied = false;
+        var resetStereo = _stereoViewMatrixApplied;
+        _stereoViewMatrixApplied = false;
+
+        try
+        {
+            ParentCamera.ResetWorldToCameraMatrix();
+            if (resetStereo) ParentCamera.ResetStereoViewMatrices();
+        }
+        catch (Exception exception)
+        {
+            // IL2CPP games can have these stripped out. The setter is known to work (it's how
+            // the matrix got overridden in the first place), so write back what Unity itself
+            // would have computed: the camera's world-to-local with Z flipped for the
+            // right-handed view space Unity uses.
+            UuvrTrace.LogWarning(
+                $"couldn't reset the camera matrix through Unity, falling back to computing it: {UuvrReflection.Describe(exception)}");
+
+            ParentCamera.worldToCameraMatrix =
+                Matrix4x4.Scale(new Vector3(1f, 1f, -1f)) * ParentCamera.transform.worldToLocalMatrix;
+        }
     }
 
     // TODO: add option for rendering original camera forward line.

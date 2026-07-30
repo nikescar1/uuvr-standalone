@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
@@ -65,26 +66,55 @@ public class CanvasRedirectPatchMode : UuvrBehaviour, VrUiPatchMode
         _uiCaptureCamera.targetTexture = targetTexture;
     }
 
+    // Finding canvases costs a scene search, so it doesn't need to happen every frame;
+    // patching is idempotent, this only decides how fast a new canvas gets picked up.
+    private const float CanvasSearchInterval = 0.25f;
+
+    private float _nextCanvasSearchTime;
+
     private void Update()
     {
-        // TODO: handle finding canvases that aren't here because they don't have anything inside them.
-        // Game example: Smushi.
-
-        var keys =
-#if CPP
-            GraphicRegistry.instance.m_Graphics.keys;
-#else
-            GraphicRegistry.instance.m_Graphics.Keys;
-#endif
-        
-        foreach (var canvas in keys)
+        if (Time.unscaledTime >= _nextCanvasSearchTime)
         {
-            PatchCanvas(canvas);
+            _nextCanvasSearchTime = Time.unscaledTime + CanvasSearchInterval;
+            PatchAllCanvases();
         }
 
         // Cursed way of making the UI capture camera not capture the projected UI itself without having to use more layers.
         // I don't know why it keeps getting reset so I'm just doing it every frame yahoo.
         _uiCaptureCamera.transform.localPosition = Vector3.right * 10;
+    }
+
+    // Searches the scene rather than reading GraphicRegistry's internal dictionary.
+    // That dictionary's field names differ between Il2CppInterop versions — the build
+    // references bundled assemblies while every game gets freshly generated ones, so the
+    // name that compiles isn't necessarily the name that exists at runtime. It also finds
+    // canvases GraphicRegistry misses because they contain no graphics yet.
+    private void PatchAllCanvases()
+    {
+        try
+        {
+#if CPP
+            var canvases = FindObjectsOfType(Il2CppInterop.Runtime.Il2CppType.Of<Canvas>());
+            if (canvases == null) return;
+
+            for (var index = 0; index < canvases.Length; index++)
+            {
+                var canvas = canvases[index]?.TryCast<Canvas>();
+                if (canvas != null) PatchCanvas(canvas);
+            }
+#else
+            foreach (var canvas in FindObjectsOfType<Canvas>())
+            {
+                PatchCanvas(canvas);
+            }
+#endif
+        }
+        catch (Exception exception)
+        {
+            UuvrTrace.LogWarning($"canvas redirect failed to patch canvases: {UuvrReflection.Describe(exception)}");
+            enabled = false;
+        }
     }
 
     private void PatchCanvas(Canvas canvas)

@@ -29,7 +29,7 @@ public class UuvrPlugin
 : BaseUnityPlugin
 #endif
 {
-    public const string PluginVersion = "0.5.12";
+    public const string PluginVersion = "0.5.13";
 
     private static UuvrPlugin _instance;
     public static string ModFolderPath { get; private set; }

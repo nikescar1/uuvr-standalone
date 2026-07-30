@@ -71,7 +71,12 @@ public class ModConfiguration
         Legacy,
     }
 
+    // Bumped whenever a default changes in a way that also needs applying to config files
+    // written by an older UUVR. See MigrateDefaults.
+    private const int CurrentConfigVersion = 1;
+
     public readonly ConfigFile Config;
+    public readonly ConfigEntry<int> ConfigVersion;
     public readonly ConfigEntry<VrStartupMethod> StartupMethod;
     public readonly ConfigEntry<bool> AutoStartVr;
     public readonly ConfigEntry<float> VrStartDelay;
@@ -187,6 +192,12 @@ public class ModConfiguration
         RegisterVector3Converter();
 
         Config = config;
+
+        ConfigVersion = config.Bind(
+            "Internal",
+            "Config Version",
+            0,
+            "Used to apply changed defaults to config files written by older UUVR versions. Don't edit this.");
 
 #if MODERN
         PreferredVrApi = config.Bind(
@@ -421,5 +432,40 @@ public class ModConfiguration
             1f,
             new ConfigDescription("Value in seconds, the interval between searches for components to disable.",
                 new AcceptableValueRange<float>(0.5f, 30f)));
+
+        MigrateDefaults();
+    }
+
+    // A config file is written on first run and then kept forever, so changing a default in
+    // code does nothing for anyone who has already played the game once. Where the old default
+    // is known to leave a game unplayable, move those configs over — but only if the value is
+    // still the old default, so a deliberate choice is never overwritten.
+    private void MigrateDefaults()
+    {
+        try
+        {
+            var fromVersion = ConfigVersion.Value;
+            if (fromVersion >= CurrentConfigVersion) return;
+
+            // v1: RelativeMatrix overrides worldToCameraMatrix, which breaks culling on modern
+            // Unity. The scene gets culled away entirely and the game renders as one flat colour.
+            var defaultTracking = GetDefaultCameraTrackingMode();
+            if (fromVersion < 1 &&
+                CameraTracking.Value == CameraTrackingMode.RelativeMatrix &&
+                defaultTracking != CameraTrackingMode.RelativeMatrix)
+            {
+                CameraTracking.Value = defaultTracking;
+                UuvrTrace.Log(
+                    $"config migration: Camera Tracking Mode was still the old default (Relative matrix), " +
+                    $"which breaks culling on this Unity version. Changed it to {defaultTracking}.");
+            }
+
+            ConfigVersion.Value = CurrentConfigVersion;
+            Config.Save();
+        }
+        catch (Exception exception)
+        {
+            UuvrTrace.LogWarning($"config migration failed: {exception}");
+        }
     }
 }
