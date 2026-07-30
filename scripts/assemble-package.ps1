@@ -27,7 +27,15 @@ New-Item -ItemType Directory -Force -Path $runtimesTarget | Out-Null
 foreach ($runtime in "mono-x64", "mono-x86", "il2cpp-x64", "il2cpp-x86") {
     $zip = Join-Path $root "build/runtimes/$runtime.zip"
     if (-not (Test-Path $zip)) { throw "Runtime not downloaded yet: $zip (run scripts/download-runtimes.ps1)" }
-    Expand-Archive $zip -DestinationPath (Join-Path $runtimesTarget $runtime)
+    $target = Join-Path $runtimesTarget $runtime
+    Expand-Archive $zip -DestinationPath $target
+
+    # Carry the version record into the payload so the loader can report which BepInEx
+    # a game actually gets, including when the IL2CPP download fell back to an older one.
+    $versionFile = Join-Path $root "build/runtimes/$runtime.version.txt"
+    if (Test-Path $versionFile) {
+        Copy-Item $versionFile (Join-Path $target "uuvr-runtime-version.txt")
+    }
 }
 
 @"

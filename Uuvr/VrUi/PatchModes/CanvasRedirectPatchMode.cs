@@ -48,8 +48,10 @@ public class CanvasRedirectPatchMode : UuvrBehaviour, VrUiPatchMode
         _uiCaptureCamera.enabled = false;
     }
 
-    private void Awake()
+    protected override void Awake()
     {
+        base.Awake();
+
         _uiCaptureCamera = new GameObject("VrUiCaptureCamera").AddComponent<Camera>();
         VrCamera.VrCamera.IgnoredCameras.Add(_uiCaptureCamera);
         _uiCaptureCamera.transform.parent = transform;

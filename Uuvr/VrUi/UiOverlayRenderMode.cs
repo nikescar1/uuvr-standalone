@@ -19,8 +19,10 @@ public class UiOverlayRenderMode: UuvrBehaviour
         _uiSceneCamera.cullingMask = 1 << LayerHelper.GetVrUiLayer();
     }
 
-    private void Awake()
+    protected override void Awake()
     {
+        base.Awake();
+
         _uiSceneCamera = Create<UuvrPoseDriver>(transform).gameObject.AddComponent<Camera>();
         VrCamera.VrCamera.IgnoredCameras.Add(_uiSceneCamera);
         _uiSceneCamera.clearFlags = CameraClearFlags.Depth;

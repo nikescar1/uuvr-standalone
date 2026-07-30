@@ -10,9 +10,12 @@
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
-        <Version>0.5.10</Version>
+        <Version>0.5.11</Version>
         <Configurations>Debug;Release;legacy-il2cpp;modern-il2cpp;legacy-mono;modern-mono</Configurations>
         <ApplicationManifest>app.manifest</ApplicationManifest>
+        <!-- Set here rather than in app.manifest, which WinForms warns about (WFAC010);
+             applied by ApplicationConfiguration.Initialize() at startup. -->
+        <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
         <InvariantGlobalization>true</InvariantGlobalization>
     </PropertyGroup>
 
