@@ -2,7 +2,6 @@ using UnityEngine;
 #if CPP
 using System;
 using System.Reflection;
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
 #endif
 
 namespace Uuvr.ModUi;
@@ -11,45 +10,39 @@ namespace Uuvr.ModUi;
 // Mono flavors call IMGUI directly. IL2CPP flavors don't have compile-time proxies
 // for the IMGUI module, so they go through reflection into the interop assemblies
 // that BepInEx generates at runtime. Everything is cached, and failures are soft:
-// if IMGUI is stripped from the game, IsAvailable turns false and the menu is disabled.
+// if IMGUI is unusable in a game, IsAvailable turns false and the menu is disabled.
+//
+// Everything here is GUI rather than GUILayout, and every widget takes an explicit Rect.
+// GUILayout is a managed layout engine sitting on top of GUI, so it's the first thing to
+// disappear from an IL2CPP game that never draws IMGUI itself — and when it goes, the menu
+// goes with it. Positioning by hand costs a bit of arithmetic and keeps the menu working in
+// games where the layout engine is gone.
 public static class GuiBridge
 {
 #if MONO
     public static bool IsAvailable => true;
 
-    public static void Label(string text) => GUILayout.Label(text);
-    public static bool Button(string text) => GUILayout.Button(text);
-    public static bool Toggle(bool value, string text) => GUILayout.Toggle(value, text);
-    public static string TextField(string text) => GUILayout.TextField(text);
-    public static float HorizontalSlider(float value, float min, float max) => GUILayout.HorizontalSlider(value, min, max);
+    public static void Label(Rect rect, string text) => GUI.Label(rect, text);
+    public static bool Button(Rect rect, string text) => GUI.Button(rect, text);
+    public static bool Toggle(Rect rect, bool value, string text) => GUI.Toggle(rect, value, text);
+    public static string TextField(Rect rect, string text) => GUI.TextField(rect, text);
+    public static float HorizontalSlider(Rect rect, float value, float min, float max) =>
+        GUI.HorizontalSlider(rect, value, min, max);
     public static void Box(Rect rect, string text) => GUI.Box(rect, text);
-    public static void BeginArea(Rect rect) => GUILayout.BeginArea(rect);
-    public static void EndArea() => GUILayout.EndArea();
-    public static Vector2 BeginScrollView(Vector2 scrollPosition) => GUILayout.BeginScrollView(scrollPosition);
-    public static void EndScrollView() => GUILayout.EndScrollView();
-    public static void BeginHorizontal() => GUILayout.BeginHorizontal();
-    public static void EndHorizontal() => GUILayout.EndHorizontal();
-    public static void Space(float pixels) => GUILayout.Space(pixels);
-    public static void FlexibleSpace() => GUILayout.FlexibleSpace();
+    public static void BeginGroup(Rect rect) => GUI.BeginGroup(rect);
+    public static void EndGroup() => GUI.EndGroup();
 #elif CPP
     private static bool _initialized;
     private static bool _available;
 
-    private static object? _emptyOptions;
     private static MethodInfo? _label;
     private static MethodInfo? _button;
     private static MethodInfo? _toggle;
     private static MethodInfo? _textField;
     private static MethodInfo? _horizontalSlider;
     private static MethodInfo? _box;
-    private static MethodInfo? _beginArea;
-    private static MethodInfo? _endArea;
-    private static MethodInfo? _beginScrollView;
-    private static MethodInfo? _endScrollView;
-    private static MethodInfo? _beginHorizontal;
-    private static MethodInfo? _endHorizontal;
-    private static MethodInfo? _space;
-    private static MethodInfo? _flexibleSpace;
+    private static MethodInfo? _beginGroup;
+    private static MethodInfo? _endGroup;
 
     public static bool IsAvailable
     {
@@ -67,46 +60,36 @@ public static class GuiBridge
 
         try
         {
-            var guiLayoutType = FindType("UnityEngine.GUILayout");
             var guiType = FindType("UnityEngine.GUI");
-            var optionType = FindType("UnityEngine.GUILayoutOption");
-            if (guiLayoutType == null || guiType == null || optionType == null)
+            var styleType = FindType("UnityEngine.GUIStyle");
+            if (guiType == null || styleType == null)
             {
-                Debug.LogWarning("UUVR: IMGUI types not found in this game, in-game menu will be unavailable.");
+                UuvrTrace.LogWarning("this game has no IMGUI types, so the in-game menu can't be drawn.");
                 return;
             }
 
-            var optionsArrayType = typeof(Il2CppReferenceArray<>).MakeGenericType(optionType);
-            _emptyOptions = Activator.CreateInstance(optionsArrayType, 0L);
-
-            _label = guiLayoutType.GetMethod("Label", new[] { typeof(string), optionsArrayType });
-            _button = guiLayoutType.GetMethod("Button", new[] { typeof(string), optionsArrayType });
-            _toggle = guiLayoutType.GetMethod("Toggle", new[] { typeof(bool), typeof(string), optionsArrayType });
-            _textField = guiLayoutType.GetMethod("TextField", new[] { typeof(string), optionsArrayType });
-            _horizontalSlider = guiLayoutType.GetMethod("HorizontalSlider", new[] { typeof(float), typeof(float), typeof(float), optionsArrayType });
+            _label = guiType.GetMethod("Label", new[] { typeof(Rect), typeof(string) });
+            _button = guiType.GetMethod("Button", new[] { typeof(Rect), typeof(string) });
+            _toggle = guiType.GetMethod("Toggle", new[] { typeof(Rect), typeof(bool), typeof(string) });
+            _textField = guiType.GetMethod("TextField", new[] { typeof(Rect), typeof(string) });
+            _horizontalSlider = guiType.GetMethod(
+                "HorizontalSlider", new[] { typeof(Rect), typeof(float), typeof(float), typeof(float) });
             _box = guiType.GetMethod("Box", new[] { typeof(Rect), typeof(string) });
-            _beginArea = guiLayoutType.GetMethod("BeginArea", new[] { typeof(Rect) });
-            _endArea = guiLayoutType.GetMethod("EndArea", Type.EmptyTypes);
-            _beginScrollView = guiLayoutType.GetMethod("BeginScrollView", new[] { typeof(Vector2), optionsArrayType });
-            _endScrollView = guiLayoutType.GetMethod("EndScrollView", Type.EmptyTypes);
-            _beginHorizontal = guiLayoutType.GetMethod("BeginHorizontal", new[] { optionsArrayType });
-            _endHorizontal = guiLayoutType.GetMethod("EndHorizontal", Type.EmptyTypes);
-            _space = guiLayoutType.GetMethod("Space", new[] { typeof(float) });
-            _flexibleSpace = guiLayoutType.GetMethod("FlexibleSpace", Type.EmptyTypes);
+            _beginGroup = guiType.GetMethod("BeginGroup", new[] { typeof(Rect) });
+            _endGroup = guiType.GetMethod("EndGroup", Type.EmptyTypes);
 
             _available = _label != null && _button != null && _toggle != null && _textField != null &&
-                         _horizontalSlider != null && _box != null && _beginArea != null && _endArea != null &&
-                         _beginScrollView != null && _endScrollView != null && _beginHorizontal != null &&
-                         _endHorizontal != null && _space != null && _flexibleSpace != null;
+                         _horizontalSlider != null && _box != null && _beginGroup != null && _endGroup != null;
 
             if (!_available)
             {
-                Debug.LogWarning("UUVR: some IMGUI methods are missing in this game, in-game menu will be unavailable.");
+                UuvrTrace.LogWarning("some IMGUI methods are missing in this game, so the in-game menu can't be drawn.");
             }
         }
         catch (Exception exception)
         {
-            Debug.LogWarning($"UUVR: failed to set up IMGUI bridge, in-game menu will be unavailable: {UuvrReflection.Describe(exception)}");
+            UuvrTrace.LogWarning(
+                $"couldn't set up IMGUI, so the in-game menu can't be drawn: {UuvrReflection.Describe(exception)}");
             _available = false;
         }
     }
@@ -125,19 +108,16 @@ public static class GuiBridge
         return null;
     }
 
-    public static void Label(string text) => _label!.Invoke(null, new[] { (object)text, _emptyOptions });
-    public static bool Button(string text) => (bool)_button!.Invoke(null, new[] { (object)text, _emptyOptions });
-    public static bool Toggle(bool value, string text) => (bool)_toggle!.Invoke(null, new[] { (object)value, text, _emptyOptions });
-    public static string TextField(string text) => (string)_textField!.Invoke(null, new[] { (object)text, _emptyOptions });
-    public static float HorizontalSlider(float value, float min, float max) => (float)_horizontalSlider!.Invoke(null, new[] { (object)value, min, max, _emptyOptions });
+    public static void Label(Rect rect, string text) => _label!.Invoke(null, new[] { (object)rect, text });
+    public static bool Button(Rect rect, string text) => (bool)_button!.Invoke(null, new[] { (object)rect, text });
+    public static bool Toggle(Rect rect, bool value, string text) =>
+        (bool)_toggle!.Invoke(null, new[] { (object)rect, value, text });
+    public static string TextField(Rect rect, string text) =>
+        (string)_textField!.Invoke(null, new[] { (object)rect, text });
+    public static float HorizontalSlider(Rect rect, float value, float min, float max) =>
+        (float)_horizontalSlider!.Invoke(null, new[] { (object)rect, value, min, max });
     public static void Box(Rect rect, string text) => _box!.Invoke(null, new[] { (object)rect, text });
-    public static void BeginArea(Rect rect) => _beginArea!.Invoke(null, new[] { (object)rect });
-    public static void EndArea() => _endArea!.Invoke(null, null);
-    public static Vector2 BeginScrollView(Vector2 scrollPosition) => (Vector2)_beginScrollView!.Invoke(null, new[] { (object)scrollPosition, _emptyOptions });
-    public static void EndScrollView() => _endScrollView!.Invoke(null, null);
-    public static void BeginHorizontal() => _beginHorizontal!.Invoke(null, new[] { _emptyOptions });
-    public static void EndHorizontal() => _endHorizontal!.Invoke(null, null);
-    public static void Space(float pixels) => _space!.Invoke(null, new[] { (object)pixels });
-    public static void FlexibleSpace() => _flexibleSpace!.Invoke(null, null);
+    public static void BeginGroup(Rect rect) => _beginGroup!.Invoke(null, new[] { (object)rect });
+    public static void EndGroup() => _endGroup!.Invoke(null, null);
 #endif
 }

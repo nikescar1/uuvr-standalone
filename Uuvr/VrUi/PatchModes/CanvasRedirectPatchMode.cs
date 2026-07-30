@@ -54,7 +54,7 @@ public class CanvasRedirectPatchMode : UuvrBehaviour, VrUiPatchMode
         base.Awake();
 
         _uiCaptureCamera = new GameObject("VrUiCaptureCamera").AddComponent<Camera>();
-        VrCamera.VrCamera.IgnoredCameras.Add(_uiCaptureCamera);
+        VrCamera.VrCamera.Ignore(_uiCaptureCamera);
         _uiCaptureCamera.transform.parent = transform;
         _uiCaptureCamera.clearFlags = CameraClearFlags.SolidColor;
         _uiCaptureCamera.backgroundColor = Color.clear;

@@ -20,6 +20,10 @@ public static class CameraFilter
             return false;
         }
 
+        // A camera picked by hand wins over everything else, including the name filters.
+        var forcedCameraName = ForcedCameraMemory.GetForcedCameraName();
+        if (forcedCameraName != null) return cameraName == forcedCameraName;
+
         if (MatchesFilter(cameraName, ModConfiguration.Instance.CameraNameBlockList.Value)) return false;
 
         var allowList = ModConfiguration.Instance.CameraNameAllowList.Value;

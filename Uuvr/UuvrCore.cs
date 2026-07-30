@@ -25,6 +25,8 @@ public class UuvrCore: MonoBehaviour
     private readonly KeyboardKey _cycleCameraTrackingKey = new (KeyboardKey.KeyCode.F5);
     private readonly KeyboardKey _cycleUiPatchModeKey = new (KeyboardKey.KeyCode.F6);
     private readonly KeyboardKey _toggleOverrideDepthKey = new (KeyboardKey.KeyCode.F7);
+    private readonly KeyboardKey _cameraReportKey = new (KeyboardKey.KeyCode.F8);
+    private readonly KeyboardKey _cycleVrCameraKey = new (KeyboardKey.KeyCode.F9);
     private float _originalFixedDeltaTime;
     private float _vrStartTime = float.MaxValue;
     private bool _vrStartAttempted;
@@ -58,7 +60,17 @@ public class UuvrCore: MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-        gameObject.AddComponent<VrCameraManager>();
+
+        try
+        {
+            gameObject.AddComponent<VrCameraManager>();
+        }
+        catch (Exception exception)
+        {
+            // Without this nothing ever becomes a VR camera, so it needs to be loud rather
+            // than an unexplained blank screen later on.
+            UuvrTrace.LogError($"failed to create the camera manager, VR won't have a camera to use: {exception}");
+        }
 
         // TODO: Emulate input.
         // UuvrBehaviour.Create<UuvrInput>(transform);
@@ -185,6 +197,8 @@ public class UuvrCore: MonoBehaviour
             _cycleCameraTrackingKey.Key = config.CycleCameraTrackingKey.Value;
             _cycleUiPatchModeKey.Key = config.CycleUiPatchModeKey.Value;
             _toggleOverrideDepthKey.Key = config.ToggleOverrideDepthKey.Value;
+            _cameraReportKey.Key = config.CameraReportKey.Value;
+            _cycleVrCameraKey.Key = config.CycleVrCameraKey.Value;
         }
 
         if (_toggleVrKey.UpdateIsDown()) ToggleVr();
@@ -200,6 +214,18 @@ public class UuvrCore: MonoBehaviour
         {
             config.OverrideDepth.Value = !config.OverrideDepth.Value;
             UuvrTrace.Log($"Override Depth: {config.OverrideDepth.Value}");
+        }
+
+        if (_cameraReportKey.UpdateIsDown())
+        {
+            if (VrCameraManager.Instance != null) VrCameraManager.Instance.LogCameraReport();
+            else UuvrTrace.LogWarning("no camera manager, so there are no cameras to report on");
+        }
+
+        if (_cycleVrCameraKey.UpdateIsDown())
+        {
+            if (VrCameraManager.Instance != null) VrCameraManager.Instance.CycleVrCamera();
+            else UuvrTrace.LogWarning("no camera manager, so there are no cameras to choose from");
         }
     }
 
