@@ -52,6 +52,29 @@ foreach (var listName in new[]{"s_IntegratedDescriptors", "s_StandaloneDescripto
                                        prop.PropertyType.GetMethods().Any(m => m.Name == "get_Item"));
 }
 
+// the native icall route used when the game strips the managed subsystem wrappers:
+// descriptor.m_Ptr -> SubsystemDescriptorBindings::Create -> managed twin in
+// SubsystemManager.s_IntegratedSubsystems -> IntegratedSubsystem::Start (instance icall)
+var descriptorBase = Find("UnityEngine.IntegratedSubsystemDescriptor");
+Check("IntegratedSubsystemDescriptor.m_Ptr readable", descriptorBase?.GetProperty("m_Ptr",
+    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) != null);
+
+var descriptorBindings = Find("UnityEngine.SubsystemDescriptorBindings");
+var createBinding = descriptorBindings?.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+    .FirstOrDefault(m => m.Name == "Create");
+Check("SubsystemDescriptorBindings.Create(IntPtr) declared", createBinding != null &&
+    createBinding.GetParameters().Length == 1 && createBinding.GetParameters()[0].ParameterType.Name == "IntPtr");
+
+var integratedSubsystem = Find("UnityEngine.IntegratedSubsystem");
+foreach (var externName in new[]{"Start", "Stop", "IsRunning"})
+    Check($"IntegratedSubsystem.{externName} declared", integratedSubsystem?.GetMethods(
+        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Any(m => m.Name == externName) == true);
+Check("IntegratedSubsystem.m_Ptr readable", integratedSubsystem?.GetProperty("m_Ptr",
+    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) != null);
+
+Check("SubsystemManager.s_IntegratedSubsystems readable", mgr?.GetProperty("s_IntegratedSubsystems",
+    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static) != null);
+
 // wrapper cast support used to match descriptor kinds under IL2CPP
 var objectBase = Find("Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase");
 if (objectBase == null)
