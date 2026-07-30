@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <AssemblyName>uuvr-api-check</AssemblyName>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <!-- Deliberately not in the solution: this is a developer tool, not part of the mod. -->
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="System.Reflection.MetadataLoadContext" Version="8.0.0" />
+    </ItemGroup>
+</Project>
