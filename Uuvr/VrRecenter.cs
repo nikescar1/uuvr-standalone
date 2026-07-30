@@ -39,7 +39,7 @@ public static class VrRecenter
         }
         catch (Exception exception)
         {
-            Debug.LogWarning($"UUVR: XR subsystem recenter failed: {exception.Message}");
+            Debug.LogWarning($"UUVR: XR subsystem recenter failed: {UuvrReflection.Describe(exception)}");
             return false;
         }
     }
@@ -63,7 +63,7 @@ public static class VrRecenter
         }
         catch (Exception exception)
         {
-            Debug.LogWarning($"UUVR: InputTracking recenter failed: {exception.Message}");
+            Debug.LogWarning($"UUVR: InputTracking recenter failed: {UuvrReflection.Describe(exception)}");
             return false;
         }
     }

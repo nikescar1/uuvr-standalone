@@ -65,7 +65,7 @@ public class LegacyOpenVrToggler: VrToggler
         }
         catch (Exception exception)
         {
-            Debug.LogError($"UUVR: failed to set XRSettings.enabled to {enabled}: {exception.Message}");
+            Debug.LogError($"UUVR: failed to set XRSettings.enabled to {enabled}: {UuvrReflection.Describe(exception)}");
             return false;
         }
     }

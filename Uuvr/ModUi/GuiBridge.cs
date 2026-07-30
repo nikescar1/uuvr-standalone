@@ -106,7 +106,7 @@ public static class GuiBridge
         }
         catch (Exception exception)
         {
-            Debug.LogWarning($"UUVR: failed to set up IMGUI bridge, in-game menu will be unavailable: {exception.Message}");
+            Debug.LogWarning($"UUVR: failed to set up IMGUI bridge, in-game menu will be unavailable: {UuvrReflection.Describe(exception)}");
             _available = false;
         }
     }
