@@ -56,7 +56,23 @@ public class ModConfiguration
         [Description("Patch Canvas objects")] CanvasRedirect,
     }
 
+    public enum VrStartupMethod
+    {
+        [Description("Auto (pick whatever the game supports)")]
+        Auto,
+
+        [Description("XR Plugin Management (needs the game to ship it)")]
+        XrPluginManagement,
+
+        [Description("XR subsystems (modern games without XR packages)")]
+        Subsystems,
+
+        [Description("Legacy built-in VR (Unity 2019 and older)")]
+        Legacy,
+    }
+
     public readonly ConfigFile Config;
+    public readonly ConfigEntry<VrStartupMethod> StartupMethod;
     public readonly ConfigEntry<bool> AutoStartVr;
     public readonly ConfigEntry<float> VrStartDelay;
     public readonly ConfigEntry<KeyboardKey.KeyCode> ToggleVrKey;
@@ -144,6 +160,12 @@ public class ModConfiguration
             VrApi.OpenXr,
             "VR API to use. Depending on the game, some APIs might be unavailable, so UUVR will fall back to one that works.");
 #endif
+
+        StartupMethod = config.Bind(
+            "General",
+            "VR Startup Method",
+            VrStartupMethod.Auto,
+            "How to turn VR on. Auto picks whichever method the game supports, which is almost always right; the others are for troubleshooting a game where Auto picks badly.");
 
         AutoStartVr = config.Bind(
             "General",

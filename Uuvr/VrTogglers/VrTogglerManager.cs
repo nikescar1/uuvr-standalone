@@ -45,14 +45,36 @@ public class VrTogglerManager
         // no longer exists. Those games need XR plugin management, which we can only reach by reflection.
         XrCapabilityReport.Log();
 
+        switch (ModConfiguration.Instance.StartupMethod.Value)
+        {
+            case ModConfiguration.VrStartupMethod.XrPluginManagement:
+                UuvrTrace.Log("VR startup method forced to XR Plugin Management");
+                _toggler = new ReflectionXrPluginToggler();
+                return;
+            case ModConfiguration.VrStartupMethod.Subsystems:
+                UuvrTrace.Log("VR startup method forced to XR subsystems");
+                _toggler = new SubsystemXrToggler();
+                return;
+            case ModConfiguration.VrStartupMethod.Legacy:
+                UuvrTrace.Log("VR startup method forced to legacy built-in VR");
+                _toggler = new LegacyOpenVrToggler();
+                return;
+        }
+
+        // Auto: most capable option the game actually supports.
         if (ReflectionXrPluginToggler.IsSupported())
         {
             UuvrTrace.Log("this game has XR Plugin Management, using it to start VR");
             _toggler = new ReflectionXrPluginToggler();
         }
+        else if (SubsystemXrToggler.IsSupported())
+        {
+            UuvrTrace.Log("no XR Plugin Management, but the XR subsystem API is available; driving that directly");
+            _toggler = new SubsystemXrToggler();
+        }
         else
         {
-            UuvrTrace.Log("no XR Plugin Management found, falling back to the legacy VR path (only works on Unity 2019 and older)");
+            UuvrTrace.Log("no modern XR support found, falling back to the legacy VR path (only works on Unity 2019 and older)");
             _toggler = new LegacyOpenVrToggler();
         }
 #endif
