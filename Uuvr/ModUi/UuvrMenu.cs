@@ -61,7 +61,7 @@ public class UuvrMenu : UuvrBehaviour
         if (!GuiBridge.IsAvailable)
         {
             _guiFailed = true;
-            Debug.LogWarning("UUVR: IMGUI is not available in this game, the in-game menu is disabled. You can still edit settings in the config file.");
+            ReportMenuUnavailable("this game has no usable IMGUI");
             return;
         }
 
@@ -72,8 +72,20 @@ public class UuvrMenu : UuvrBehaviour
         catch (Exception exception)
         {
             _guiFailed = true;
-            Debug.LogError($"UUVR: error while drawing the in-game menu, disabling it: {exception}");
+            ReportMenuUnavailable(UuvrReflection.Describe(exception));
         }
+    }
+
+    // Goes through the trace file, not just the Unity log: a game that strips IMGUI leaves the
+    // menu key doing nothing at all, and the reason needs to be somewhere findable.
+    private static void ReportMenuUnavailable(string reason)
+    {
+        UuvrTrace.LogWarning($"the in-game menu can't be drawn ({reason}).");
+        UuvrTrace.Log(
+            "Change settings in BepInEx/config/raicuparta.uuvr-*.cfg instead, or use the hotkeys: " +
+            $"{ModConfiguration.Instance.CycleCameraTrackingKey.Value} cycles camera tracking mode, " +
+            $"{ModConfiguration.Instance.CycleUiPatchModeKey.Value} cycles UI patch mode, " +
+            $"{ModConfiguration.Instance.ToggleOverrideDepthKey.Value} toggles depth override.");
     }
 
     private void DrawMenu()
