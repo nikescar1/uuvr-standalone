@@ -108,6 +108,38 @@ public class ModConfiguration
     public readonly ConfigEntry<VrApi> PreferredVrApi;
 #endif
 
+    private static CameraTrackingMode GetDefaultCameraTrackingMode()
+    {
+#if MODERN
+        return CameraTrackingMode.RelativeTransform;
+#else
+        // The legacy build is also what modern IL2CPP games get, since there's no modern
+        // IL2CPP build. RelativeMatrix overrides worldToCameraMatrix, which breaks the
+        // camera's culling on modern Unity and leaves the scene empty apart from UI, so
+        // those games start on Child — it renders through a real second camera instead.
+        return IsModernUnity() ? CameraTrackingMode.Child : CameraTrackingMode.RelativeMatrix;
+#endif
+    }
+
+    private static bool IsModernUnity()
+    {
+        try
+        {
+            var version = Application.unityVersion;
+            var separator = version.IndexOf('.');
+            if (separator > 0 && int.TryParse(version.Substring(0, separator), out var major))
+            {
+                // 2020+ dropped built-in VR; Unity 6 reports as 6000.x.
+                return major >= 2020;
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        return false;
+    }
+
     // BepInEx only knows how to serialize primitives, so Vector3 settings need a converter
     // registered before anything binds them, or the whole plugin fails to load.
     private static void RegisterVector3Converter()
@@ -236,12 +268,8 @@ public class ModConfiguration
         CameraTracking = config.Bind(
             "Camera",
             "Camera Tracking Mode",
-#if LEGACY
-            CameraTrackingMode.RelativeMatrix,
-#else
-            CameraTrackingMode.RelativeTransform,
-#endif
-            "Defines how camera tracking is done. Relative is usually preferred, but not all games support it. Changing this might require restarting the level.");
+            GetDefaultCameraTrackingMode(),
+            "Defines how camera tracking is done. If the game renders nothing in VR (a flat, empty colour), this is the first setting to change. Changing this might require restarting the level.");
 
         RelativeCameraSetStereoView = config.Bind(
             "Relative Camera",

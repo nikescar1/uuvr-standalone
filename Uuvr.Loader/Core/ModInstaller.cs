@@ -133,6 +133,37 @@ public class ModInstaller
         }
     }
 
+    // Written into the payload by scripts/assemble-package.ps1.
+    private void LogRuntimeVersion(string runtimeSourceDir)
+    {
+        try
+        {
+            var versionFile = Path.Combine(runtimeSourceDir, "uuvr-runtime-version.txt");
+            if (!File.Exists(versionFile)) return;
+
+            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var line in File.ReadAllLines(versionFile))
+            {
+                var separator = line.IndexOf('=');
+                if (separator > 0) values[line.Substring(0, separator).Trim()] = line.Substring(separator + 1).Trim();
+            }
+
+            values.TryGetValue("version", out var version);
+            _log($"BepInEx version: {(string.IsNullOrEmpty(version) ? "unknown" : version)}");
+
+            if (values.TryGetValue("fallback", out var fallback) && fallback == "true")
+            {
+                values.TryGetValue("compiled-against", out var compiledAgainst);
+                _log($"Warning: this build bundles BepInEx {version}, but the IL2CPP mod is compiled against {compiledAgainst}.");
+                _log("It usually still works. If the mod fails to load, install BepInEx bleeding-edge into the game yourself and reinstall; UUVR keeps an existing BepInEx and only adds the mod to it.");
+            }
+        }
+        catch (Exception)
+        {
+            // Version reporting is informational; never let it stop an install.
+        }
+    }
+
     private void RestoreGlobalSettingsBackups(UnityGameInfo game)
     {
         foreach (var fileName in new[] { "globalgamemanagers", "mainData", "data.unity3d" })
@@ -213,6 +244,7 @@ public class ModInstaller
                 }
 
                 _log($"Installing BepInEx runtime ({runtimeName})...");
+                LogRuntimeVersion(runtimeSourceDir);
                 CopyTree(runtimeSourceDir, game.GameDir, game.GameDir, manifest.Files);
             }
 
@@ -339,5 +371,5 @@ public class ModInstaller
 
 public static class LoaderVersion
 {
-    public const string Value = "0.5.10";
+    public const string Value = "0.5.11";
 }

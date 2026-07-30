@@ -43,8 +43,10 @@ public class ScreenMirrorPatchMode : UuvrBehaviour, VrUiPatchMode
         Reset();
     }
 
-    private void Awake()
+    protected override void Awake()
     {
+        base.Awake();
+
         Debug.Log("mirror mode Start");
         // TODO: find a layer that's visible by the top camera.
         // _quad.layer = LayerHelper.GetVrUiLayer();
