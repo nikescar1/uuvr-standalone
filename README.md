@@ -35,6 +35,13 @@ game starts. Everything the loader adds is tracked and fully reversible.
 | `F2` | Open/close the UUVR settings menu |
 | `F3` | Toggle VR on/off |
 | `F4` | Recenter the VR view |
+| `F5` | Cycle camera tracking mode |
+| `F6` | Cycle UI patch mode |
+| `F7` | Toggle depth override |
+
+`F5`–`F7` exist because the menu needs Unity's IMGUI, which some IL2CPP games strip out
+entirely. They reach the settings that decide whether a game renders at all, and write the
+value they changed to `uuvr-trace.log`.
 
 The in-game menu lets you tweak everything live: camera tracking mode, world scale,
 near clip, camera offsets, UI patch modes, camera filters, hotkeys, and more. Settings

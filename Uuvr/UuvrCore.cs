@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Reflection;
+using BepInEx.Configuration;
 using UnityEngine;
 using Uuvr.ModUi;
 using Uuvr.VrCamera;
@@ -21,6 +22,9 @@ public class UuvrCore: MonoBehaviour
     private readonly KeyboardKey _toggleVrKey = new (KeyboardKey.KeyCode.F3);
     private readonly KeyboardKey _toggleMenuKey = new (KeyboardKey.KeyCode.F2);
     private readonly KeyboardKey _recenterKey = new (KeyboardKey.KeyCode.F4);
+    private readonly KeyboardKey _cycleCameraTrackingKey = new (KeyboardKey.KeyCode.F5);
+    private readonly KeyboardKey _cycleUiPatchModeKey = new (KeyboardKey.KeyCode.F6);
+    private readonly KeyboardKey _toggleOverrideDepthKey = new (KeyboardKey.KeyCode.F7);
     private float _originalFixedDeltaTime;
     private float _vrStartTime = float.MaxValue;
     private bool _vrStartAttempted;
@@ -178,11 +182,43 @@ public class UuvrCore: MonoBehaviour
             _toggleVrKey.Key = config.ToggleVrKey.Value;
             _toggleMenuKey.Key = config.ToggleMenuKey.Value;
             _recenterKey.Key = config.RecenterKey.Value;
+            _cycleCameraTrackingKey.Key = config.CycleCameraTrackingKey.Value;
+            _cycleUiPatchModeKey.Key = config.CycleUiPatchModeKey.Value;
+            _toggleOverrideDepthKey.Key = config.ToggleOverrideDepthKey.Value;
         }
 
         if (_toggleVrKey.UpdateIsDown()) ToggleVr();
         if (_toggleMenuKey.UpdateIsDown()) _menu?.ToggleOpen();
         if (_recenterKey.UpdateIsDown()) VrRecenter.Recenter();
+
+        if (config == null) return;
+
+        if (_cycleCameraTrackingKey.UpdateIsDown()) CycleSetting(config.CameraTracking, "Camera Tracking Mode");
+        if (_cycleUiPatchModeKey.UpdateIsDown()) CycleSetting(config.PreferredUiPatchMode, "UI Patch Mode");
+
+        if (_toggleOverrideDepthKey.UpdateIsDown())
+        {
+            config.OverrideDepth.Value = !config.OverrideDepth.Value;
+            UuvrTrace.Log($"Override Depth: {config.OverrideDepth.Value}");
+        }
+    }
+
+    // Steps an enum setting to its next value and says which one it landed on. Reaching these
+    // by hotkey matters in games that strip IMGUI, where the in-game menu can't open at all.
+    private static void CycleSetting(ConfigEntryBase entry, string description)
+    {
+        try
+        {
+            var values = Enum.GetValues(entry.SettingType);
+            var index = Array.IndexOf(values, entry.BoxedValue);
+            var next = values.GetValue((index + 1) % values.Length);
+            entry.BoxedValue = next;
+            UuvrTrace.Log($"{description}: {next}");
+        }
+        catch (Exception exception)
+        {
+            UuvrTrace.LogWarning($"couldn't change {description}: {UuvrReflection.Describe(exception)}");
+        }
     }
 
     private void UpdatePhysicsRate()

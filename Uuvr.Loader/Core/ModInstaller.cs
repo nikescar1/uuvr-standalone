@@ -371,5 +371,5 @@ public class ModInstaller
 
 public static class LoaderVersion
 {
-    public const string Value = "0.5.11";
+    public const string Value = "0.5.12";
 }

@@ -78,6 +78,9 @@ public class ModConfiguration
     public readonly ConfigEntry<KeyboardKey.KeyCode> ToggleVrKey;
     public readonly ConfigEntry<KeyboardKey.KeyCode> ToggleMenuKey;
     public readonly ConfigEntry<KeyboardKey.KeyCode> RecenterKey;
+    public readonly ConfigEntry<KeyboardKey.KeyCode> CycleCameraTrackingKey;
+    public readonly ConfigEntry<KeyboardKey.KeyCode> CycleUiPatchModeKey;
+    public readonly ConfigEntry<KeyboardKey.KeyCode> ToggleOverrideDepthKey;
     public readonly ConfigEntry<float> WorldScale;
     public readonly ConfigEntry<bool> OverrideNearClip;
     public readonly ConfigEntry<float> NearClipValue;
@@ -230,6 +233,27 @@ public class ModConfiguration
             "Recenter Key",
             KeyboardKey.KeyCode.F4,
             "Keyboard key used to recenter the VR view.");
+
+        // These exist because the in-game menu needs Unity's IMGUI, which some IL2CPP games
+        // strip out entirely. Hotkeys reach the settings that actually decide whether a game
+        // renders at all, without depending on any UI.
+        CycleCameraTrackingKey = config.Bind(
+            "Hotkeys",
+            "Cycle Camera Tracking Mode Key",
+            KeyboardKey.KeyCode.F5,
+            "Steps through the camera tracking modes. Use this if the game renders nothing in VR; the chosen mode is written to the log and the trace file.");
+
+        CycleUiPatchModeKey = config.Bind(
+            "Hotkeys",
+            "Cycle UI Patch Mode Key",
+            KeyboardKey.KeyCode.F6,
+            "Steps through the UI patch modes.");
+
+        ToggleOverrideDepthKey = config.Bind(
+            "Hotkeys",
+            "Toggle Override Depth Key",
+            KeyboardKey.KeyCode.F7,
+            "Turns 'Override Depth' on and off, which some games need before the VR camera shows anything.");
 
         WorldScale = config.Bind(
             "Camera",
