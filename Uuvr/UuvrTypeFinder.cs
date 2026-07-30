@@ -90,7 +90,7 @@ public static class UuvrTypeFinder
             }
             catch (Exception exception)
             {
-                UuvrTrace.LogWarning($"couldn't load interop assembly {fileName}: {exception.Message}");
+                UuvrTrace.LogWarning($"couldn't load interop assembly {fileName}: {UuvrReflection.Describe(exception)}");
             }
         }
 

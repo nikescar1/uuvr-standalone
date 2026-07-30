@@ -14,14 +14,23 @@ namespace Uuvr.VrTogglers;
 //
 // So for those games we do what the package would have done, by reflection, so this works from
 // the legacy IL2CPP build with no compile-time XR references.
+//
+// Member names were checked against the interop assemblies of a real Unity 2021 IL2CPP game
+// (see tools/Uuvr.ApiCheck), so they're the actual API rather than what the public docs imply.
 public class SubsystemXrToggler : VrToggler
 {
-    private object? _displaySubsystem;
-    private object? _inputSubsystem;
+    // The registry the native XR plugins report their descriptors into. Reading its static
+    // lists needs no method arguments and no list construction on our side, which makes it
+    // the least fragile route under IL2CPP interop.
+    private const string DescriptorStoreTypeName = "UnityEngine.SubsystemsImplementation.SubsystemDescriptorStore";
 
-    // Member names below were checked against the interop assemblies of a real Unity 2021
-    // IL2CPP game, so they're the actual API rather than what the public docs imply.
-    //
+    private static readonly string[] DescriptorStoreListNames =
+    {
+        "s_IntegratedDescriptors",
+        "s_StandaloneDescriptors",
+        "s_DeprecatedDescriptors",
+    };
+
     // There is no public Create() on a descriptor: IntegratedSubsystemDescriptor<T> exposes
     // CreateImpl(), and ISubsystemDescriptor.Create is an explicit interface implementation,
     // whose reflected name therefore carries the interface prefix.
@@ -31,6 +40,9 @@ public class SubsystemXrToggler : VrToggler
         "UnityEngine.ISubsystemDescriptor.Create",
         "Create",
     };
+
+    private object? _displaySubsystem;
+    private object? _inputSubsystem;
 
     public static bool IsSupported()
     {
@@ -54,8 +66,8 @@ public class SubsystemXrToggler : VrToggler
             UuvrTrace.Log($"  {descriptor.GetType().Name} id='{GetDescriptorId(descriptor)}'");
         }
 
-        _displaySubsystem = CreateSubsystem(descriptors, "XRDisplaySubsystemDescriptor", "display");
-        _inputSubsystem = CreateSubsystem(descriptors, "XRInputSubsystemDescriptor", "input");
+        _displaySubsystem = CreateSubsystem(descriptors, "UnityEngine.XR.XRDisplaySubsystemDescriptor", "UnityEngine.XR.XRDisplaySubsystem", "display");
+        _inputSubsystem = CreateSubsystem(descriptors, "UnityEngine.XR.XRInputSubsystemDescriptor", "UnityEngine.XR.XRInputSubsystem", "input");
 
         if (_displaySubsystem == null)
         {
@@ -75,6 +87,63 @@ public class SubsystemXrToggler : VrToggler
 
     private static List<object> GetSubsystemDescriptors()
     {
+        // Route 1: read the descriptor registry's static lists directly.
+        var results = ReadDescriptorStoreLists();
+        if (results.Count > 0) return results;
+
+        // Route 2: SubsystemManager.GetAllSubsystemDescriptors(list).
+        results = QueryViaSubsystemManager();
+        if (results.Count > 0) return results;
+
+        // Route 3: older Unity versions expose a generic query instead.
+        return QueryViaGenericGetDescriptors();
+    }
+
+    private static List<object> ReadDescriptorStoreLists()
+    {
+        var results = new List<object>();
+
+        var storeType = UuvrTypeFinder.FindType(DescriptorStoreTypeName);
+        if (storeType == null)
+        {
+            UuvrTrace.Log("descriptor store type not found (normal for Unity 2019 and older), trying SubsystemManager");
+            return results;
+        }
+
+        foreach (var listName in DescriptorStoreListNames)
+        {
+            try
+            {
+                var listProperty = storeType.GetProperty(
+                    listName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                if (listProperty == null)
+                {
+                    UuvrTrace.Log($"  descriptor store has no '{listName}' list");
+                    continue;
+                }
+
+                var list = listProperty.GetValue(null, null);
+                if (list == null)
+                {
+                    UuvrTrace.Log($"  descriptor store list '{listName}' is null");
+                    continue;
+                }
+
+                var countBefore = results.Count;
+                EnumerateListInto(results, list);
+                UuvrTrace.Log($"  descriptor store list '{listName}': {results.Count - countBefore} entries");
+            }
+            catch (Exception exception)
+            {
+                UuvrTrace.LogWarning($"reading descriptor store list '{listName}' failed: {UuvrReflection.Describe(exception)}");
+            }
+        }
+
+        return results;
+    }
+
+    private static List<object> QueryViaSubsystemManager()
+    {
         var results = new List<object>();
 
         var subsystemManagerType = UuvrTypeFinder.FindType("UnityEngine.SubsystemManager");
@@ -84,25 +153,42 @@ public class SubsystemXrToggler : VrToggler
             return results;
         }
 
-        // Prefer the non-generic call: taking the list type straight from the parameter
-        // avoids having to construct a generic type by hand, which is fragile under IL2CPP.
         var getAll = subsystemManagerType.GetMethod(
             "GetAllSubsystemDescriptors", BindingFlags.Public | BindingFlags.Static);
 
-        if (getAll != null && getAll.GetParameters().Length == 1)
+        if (getAll == null || getAll.GetParameters().Length != 1)
         {
-            UuvrTrace.Log("querying subsystem descriptors via GetAllSubsystemDescriptors");
-            CollectInto(results, getAll, getAll.GetParameters()[0].ParameterType, null);
-            if (results.Count > 0) return results;
+            UuvrTrace.Log("SubsystemManager.GetAllSubsystemDescriptors not available");
+            return results;
         }
 
-        // Otherwise use the generic form, once per descriptor type we care about.
-        var getDescriptors = subsystemManagerType.GetMethod(
+        try
+        {
+            UuvrTrace.Log("querying subsystem descriptors via GetAllSubsystemDescriptors");
+            var listType = getAll.GetParameters()[0].ParameterType;
+            var list = Activator.CreateInstance(listType);
+            getAll.Invoke(null, new[] { list });
+            EnumerateListInto(results, list!);
+        }
+        catch (Exception exception)
+        {
+            UuvrTrace.LogWarning($"GetAllSubsystemDescriptors failed: {UuvrReflection.Describe(exception)}");
+        }
+
+        return results;
+    }
+
+    private static List<object> QueryViaGenericGetDescriptors()
+    {
+        var results = new List<object>();
+
+        var subsystemManagerType = UuvrTypeFinder.FindType("UnityEngine.SubsystemManager");
+        var getDescriptors = subsystemManagerType?.GetMethod(
             "GetSubsystemDescriptors", BindingFlags.Public | BindingFlags.Static);
 
         if (getDescriptors == null || !getDescriptors.IsGenericMethodDefinition)
         {
-            UuvrTrace.LogError("no usable descriptor query found on SubsystemManager.");
+            UuvrTrace.Log("SubsystemManager.GetSubsystemDescriptors<T> not available either");
             return results;
         }
 
@@ -113,72 +199,40 @@ public class SubsystemXrToggler : VrToggler
                  })
         {
             var descriptorType = UuvrTypeFinder.FindType(descriptorTypeName);
-            if (descriptorType == null)
-            {
-                UuvrTrace.LogWarning($"{descriptorTypeName} not found.");
-                continue;
-            }
+            if (descriptorType == null) continue;
 
             try
             {
                 UuvrTrace.Log($"querying subsystem descriptors via GetSubsystemDescriptors<{descriptorType.Name}>");
                 var method = getDescriptors.MakeGenericMethod(descriptorType);
-                CollectInto(results, method, method.GetParameters()[0].ParameterType, null);
+                var listType = method.GetParameters()[0].ParameterType;
+                var list = Activator.CreateInstance(listType);
+                method.Invoke(null, new[] { list });
+                EnumerateListInto(results, list!);
             }
             catch (Exception exception)
             {
-                UuvrTrace.LogWarning($"GetSubsystemDescriptors<{descriptorType.Name}> failed: {exception.Message}");
+                UuvrTrace.LogWarning($"GetSubsystemDescriptors<{descriptorType.Name}> failed: {UuvrReflection.Describe(exception)}");
             }
         }
 
         return results;
     }
 
-    private static void CollectInto(List<object> results, MethodInfo method, Type listType, object? target)
+    private static void EnumerateListInto(List<object> results, object list)
     {
-        try
-        {
-            var list = Activator.CreateInstance(listType);
-            method.Invoke(target, new[] { list });
+        var listType = list.GetType();
+        var count = listType.GetProperty("Count")?.GetValue(list, null) as int? ?? 0;
+        var itemGetter = listType.GetMethod("get_Item");
+        if (itemGetter == null) return;
 
-            var count = listType.GetProperty("Count")?.GetValue(list, null) as int? ?? 0;
-            var itemGetter = listType.GetMethod("get_Item");
-
-            for (var index = 0; index < count; index++)
-            {
-                var item = itemGetter?.Invoke(list, new object[] { index });
-                if (item != null && !results.Contains(item)) results.Add(item);
-            }
-        }
-        catch (Exception exception)
+        for (var index = 0; index < count; index++)
         {
-            UuvrTrace.LogWarning($"{method.Name} failed: {exception.Message}");
+            var item = itemGetter.Invoke(list, new object[] { index });
+            if (item != null && !results.Contains(item)) results.Add(item);
         }
     }
 
-    private static MethodInfo? FindCreateMethod(Type descriptorType)
-    {
-        foreach (var methodName in CreateMethodNames)
-        {
-            try
-            {
-                var method = descriptorType.GetMethod(
-                    methodName,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
-                    null, Type.EmptyTypes, null);
-                if (method != null) return method;
-            }
-            catch (Exception)
-            {
-                // Ambiguous or inaccessible; try the next name.
-            }
-        }
-
-        return null;
-    }
-
-    // 'id' is a property on the descriptor interface but reaches the concrete types as get_id,
-    // so try both rather than assuming.
     private static string GetDescriptorId(object descriptor)
     {
         var descriptorType = descriptor.GetType();
@@ -202,28 +256,46 @@ public class SubsystemXrToggler : VrToggler
         return "";
     }
 
-    private static object? CreateSubsystem(List<object> descriptors, string descriptorTypeName, string description)
+    private static object? CreateSubsystem(List<object> descriptors, string descriptorTypeName, string subsystemTypeName, string description)
     {
+        var descriptorType = UuvrTypeFinder.FindType(descriptorTypeName);
+        if (descriptorType == null)
+        {
+            UuvrTrace.LogWarning($"{descriptorTypeName} not found in this game.");
+            return null;
+        }
+
         foreach (var descriptor in descriptors)
         {
-            if (!IsOfType(descriptor.GetType(), descriptorTypeName)) continue;
+            // Wrappers carry their declared type under IL2CPP, so the il2cpp side decides
+            // whether this descriptor really is the wanted kind (see UuvrReflection.CastToType).
+            var typedDescriptor = UuvrReflection.CastToType(descriptor, descriptorType);
+            if (typedDescriptor == null) continue;
 
-            var createMethod = FindCreateMethod(descriptor.GetType());
+            var createMethod = FindCreateMethod(typedDescriptor.GetType());
             if (createMethod == null)
             {
                 UuvrTrace.LogWarning(
-                    $"{descriptor.GetType().Name} has none of the known creation methods ({string.Join(", ", CreateMethodNames)}).");
+                    $"{typedDescriptor.GetType().Name} has none of the known creation methods ({string.Join(", ", CreateMethodNames)}).");
                 continue;
             }
 
             try
             {
-                UuvrTrace.Log($"creating {description} subsystem from '{GetDescriptorId(descriptor)}' via {createMethod.Name}");
-                var subsystem = createMethod.Invoke(descriptor, null);
+                UuvrTrace.Log($"creating {description} subsystem from '{GetDescriptorId(typedDescriptor)}' via {createMethod.Name}");
+                var subsystem = createMethod.Invoke(typedDescriptor, null);
                 if (subsystem == null)
                 {
                     UuvrTrace.LogWarning($"{createMethod.Name} returned null for the {description} subsystem.");
                     continue;
+                }
+
+                // Same wrapper-type dance for the created subsystem, so Start/Stop/running
+                // resolve on the concrete type.
+                var subsystemType = UuvrTypeFinder.FindType(subsystemTypeName);
+                if (subsystemType != null)
+                {
+                    subsystem = UuvrReflection.CastToType(subsystem, subsystemType) ?? subsystem;
                 }
 
                 UuvrTrace.Log($"created {description} subsystem ({subsystem.GetType().Name})");
@@ -231,24 +303,33 @@ public class SubsystemXrToggler : VrToggler
             }
             catch (Exception exception)
             {
-                UuvrTrace.LogWarning($"failed to create {description} subsystem: {exception.Message}");
+                UuvrTrace.LogWarning($"failed to create {description} subsystem: {UuvrReflection.Describe(exception)}");
+            }
+        }
+
+        UuvrTrace.Log($"no descriptor matched {descriptorType.Name}");
+        return null;
+    }
+
+    private static MethodInfo? FindCreateMethod(Type descriptorType)
+    {
+        foreach (var methodName in CreateMethodNames)
+        {
+            try
+            {
+                var method = descriptorType.GetMethod(
+                    methodName,
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                    null, Type.EmptyTypes, null);
+                if (method != null) return method;
+            }
+            catch (Exception)
+            {
+                // Ambiguous or inaccessible; try the next name.
             }
         }
 
         return null;
-    }
-
-    // Descriptors can be subclasses, so walk the hierarchy by name rather than
-    // depending on types we can't reference at compile time.
-    private static bool IsOfType(Type? type, string typeName)
-    {
-        while (type != null)
-        {
-            if (type.Name == typeName) return true;
-            type = type.BaseType;
-        }
-
-        return false;
     }
 
     protected override bool EnableVr()
@@ -283,7 +364,7 @@ public class SubsystemXrToggler : VrToggler
     {
         try
         {
-            var method = subsystem.GetType().GetMethod(methodName);
+            var method = subsystem.GetType().GetMethod(methodName, Type.EmptyTypes);
             if (method == null)
             {
                 UuvrTrace.LogError($"{description} subsystem has no {methodName} method.");
@@ -296,7 +377,7 @@ public class SubsystemXrToggler : VrToggler
         }
         catch (Exception exception)
         {
-            UuvrTrace.LogError($"{methodName} failed on the {description} subsystem: {exception.Message}");
+            UuvrTrace.LogError($"{methodName} failed on the {description} subsystem: {UuvrReflection.Describe(exception)}");
             return false;
         }
     }

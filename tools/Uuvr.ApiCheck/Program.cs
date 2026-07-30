@@ -40,6 +40,31 @@ Check("list type has Count", listType?.GetProperty("Count") != null);
 Check("list type has get_Item", listType?.GetMethods().Any(m => m.Name == "get_Item") == true);
 Check("list type has ToArray (fallback)", listType?.GetMethods().Any(m => m.Name == "ToArray") == true);
 
+// the descriptor store route (primary under IL2CPP: no list construction, no method args)
+var store = Find("UnityEngine.SubsystemsImplementation.SubsystemDescriptorStore");
+Check("SubsystemDescriptorStore found", store != null);
+foreach (var listName in new[]{"s_IntegratedDescriptors", "s_StandaloneDescriptors", "s_DeprecatedDescriptors"})
+{
+    var prop = store?.GetProperty(listName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+    Check($"  store list {listName}", prop != null, prop?.PropertyType.ToString() ?? "missing");
+    if (prop == null) continue;
+    Check($"    has Count + get_Item", prop.PropertyType.GetProperty("Count") != null &&
+                                       prop.PropertyType.GetMethods().Any(m => m.Name == "get_Item"));
+}
+
+// wrapper cast support used to match descriptor kinds under IL2CPP
+var objectBase = Find("Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase");
+if (objectBase == null)
+{
+    // Il2CppObjectBase lives in the BepInEx core folder, not the interop folder.
+    foreach (var e in extra)
+    {
+        try { objectBase = mlc.LoadFromAssemblyPath(e).GetType("Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase"); } catch {}
+        if (objectBase != null) break;
+    }
+}
+Check("Il2CppObjectBase.TryCast<T> present", objectBase?.GetMethods().Any(m => m.Name == "TryCast" && m.IsGenericMethodDefinition) == true);
+
 foreach (var dn in new[]{"UnityEngine.XR.XRDisplaySubsystemDescriptor", "UnityEngine.XR.XRInputSubsystemDescriptor"})
 {
     var d = Find(dn);

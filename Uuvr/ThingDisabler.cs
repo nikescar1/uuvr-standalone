@@ -85,13 +85,20 @@ public class ThingDisabler : UuvrBehaviour
     {
         var componentObjects = FindObjects(ModConfiguration.Instance.ObjectsToDeactivateByComponent.Value);
         if (componentObjects == null) return;
-        
+
         foreach (var componentObject in componentObjects)
         {
+#if CPP
+            // IL2CPP wrappers carry their declared type (Object here), so reflecting for
+            // 'gameObject' on the wrapper finds nothing; ask the il2cpp side instead.
+            var component = componentObject.TryCast<Component>();
+            var gameObject = component != null ? component.gameObject : null;
+#else
             var gameObjectProperty = componentObject.GetType()
                 .GetProperty("gameObject", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
             if (gameObjectProperty == null) continue;
             var gameObject = (GameObject)gameObjectProperty.GetValue(componentObject, null);
+#endif
             if (gameObject == null) continue;
             gameObject.SetActive(false);
         }
@@ -101,17 +108,22 @@ public class ThingDisabler : UuvrBehaviour
     {
         var componentObjects = FindObjects(ModConfiguration.Instance.ComponentsToDisable.Value);
         if (componentObjects == null) return;
-        
+
         foreach (var componentObject in componentObjects)
         {
+#if CPP
+            var behaviour = componentObject.TryCast<Behaviour>();
+            if (behaviour != null) behaviour.enabled = false;
+#else
             var type = componentObject.GetType();
             var enabledProperty = type.GetProperty("enabled",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
 
             if (enabledProperty == null || !enabledProperty.CanWrite ||
-                enabledProperty.PropertyType != typeof(bool)) return;
+                enabledProperty.PropertyType != typeof(bool)) continue;
 
             enabledProperty.SetValue(componentObject, false, null);
+#endif
         }
     }
 }

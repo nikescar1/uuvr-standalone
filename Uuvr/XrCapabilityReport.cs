@@ -26,6 +26,7 @@ public static class XrCapabilityReport
         // The lower-level subsystem API, which lives in the engine itself rather than
         // in a package, and may be usable when the packages are absent.
         "UnityEngine.SubsystemManager",
+        "UnityEngine.SubsystemsImplementation.SubsystemDescriptorStore",
         "UnityEngine.XR.XRDisplaySubsystem",
         "UnityEngine.XR.XRDisplaySubsystemDescriptor",
         "UnityEngine.XR.XRInputSubsystem",
@@ -56,7 +57,7 @@ public static class XrCapabilityReport
         }
         catch (Exception exception)
         {
-            UuvrTrace.LogWarning($"capability report failed: {exception.Message}");
+            UuvrTrace.LogWarning($"capability report failed: {UuvrReflection.Describe(exception)}");
         }
     }
 
@@ -79,7 +80,7 @@ public static class XrCapabilityReport
         }
         catch (Exception exception)
         {
-            UuvrTrace.Log($"  XRSettings: couldn't read ({exception.Message})");
+            UuvrTrace.Log($"  XRSettings: couldn't read ({UuvrReflection.Describe(exception)})");
         }
     }
 

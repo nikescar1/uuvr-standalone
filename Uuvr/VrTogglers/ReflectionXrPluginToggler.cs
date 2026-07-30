@@ -93,7 +93,7 @@ public class ReflectionXrPluginToggler : VrToggler
         }
         catch (Exception exception)
         {
-            UuvrTrace.LogWarning($"couldn't read the game's XR settings ({exception.Message}), setting up our own");
+            UuvrTrace.LogWarning($"couldn't read the game's XR settings ({UuvrReflection.Describe(exception)}), setting up our own");
             return null;
         }
     }
@@ -189,7 +189,7 @@ public class ReflectionXrPluginToggler : VrToggler
             }
             catch (Exception exception)
             {
-                UuvrTrace.LogWarning($"TryAddLoader failed ({exception.Message}), falling back to the loaders list");
+                UuvrTrace.LogWarning($"TryAddLoader failed ({UuvrReflection.Describe(exception)}), falling back to the loaders list");
             }
         }
 
