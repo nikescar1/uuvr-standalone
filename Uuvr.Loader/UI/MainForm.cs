@@ -34,9 +34,16 @@ public class MainForm : Form
             ? _games[_gameList.SelectedIndices[0]]
             : null;
 
+    private SplitContainer _split = null!;
+
+    // Width the details panel is designed for; the splitter keeps it fixed.
+    private const int DetailsPanelWidth = 370;
+
     public MainForm()
     {
         Text = $"UUVR — Universal Unity VR {LoaderVersion.Value}";
+        // Scale the fixed-pixel layout with the monitor's DPI, so nothing clips at 125%/150%.
+        AutoScaleMode = AutoScaleMode.Dpi;
         MinimumSize = new Size(980, 640);
         Size = new Size(1100, 700);
         BackColor = Theme.Background;
@@ -49,7 +56,41 @@ public class MainForm : Form
 
         DragEnter += OnDragEnter;
         DragDrop += OnDragDrop;
-        Shown += async (_, _) => await RefreshGamesAsync();
+        Shown += async (_, _) =>
+        {
+            PlaceSplitter();
+            await RefreshGamesAsync();
+        };
+    }
+
+    // Positioning the splitter only after the form has its real size avoids the
+    // clamping/drift that happens when SplitterDistance is set during construction.
+    private void PlaceSplitter()
+    {
+        try
+        {
+            _split.SplitterDistance = Math.Max(_split.Panel1MinSize, _split.ClientSize.Width - DetailsPanelWidth);
+        }
+        catch (Exception)
+        {
+            // Window smaller than the minimum panels; the SplitContainer picks a valid position itself.
+        }
+        FitGameListColumns();
+    }
+
+    // The first column absorbs all remaining width, so the header never shows an
+    // unpainted strip past the last column.
+    private void FitGameListColumns()
+    {
+        if (_gameList.Columns.Count == 0) return;
+
+        var otherColumnsWidth = 0;
+        for (var index = 1; index < _gameList.Columns.Count; index++)
+        {
+            otherColumnsWidth += _gameList.Columns[index].Width;
+        }
+
+        _gameList.Columns[0].Width = Math.Max(160, _gameList.ClientSize.Width - otherColumnsWidth - 4);
     }
 
     private void BuildLayout()
@@ -98,14 +139,18 @@ public class MainForm : Form
         Controls.Add(header);
         header.BringToFront();
 
-        // Main split: game list on the left, details on the right.
-        var split = new SplitContainer
+        // Main split: game list on the left, details on the right. The details panel keeps a
+        // fixed width; the game list absorbs window resizing.
+        _split = new SplitContainer
         {
             Dock = DockStyle.Fill,
-            SplitterDistance = 560,
             BackColor = Theme.Background,
             SplitterWidth = 6,
+            FixedPanel = FixedPanel.Panel2,
+            Panel1MinSize = 300,
+            Panel2MinSize = DetailsPanelWidth,
         };
+        var split = _split;
         Controls.Add(split);
         split.BringToFront();
 
@@ -136,17 +181,25 @@ public class MainForm : Form
         _gameList.DrawSubItem += (_, e) => e.DrawDefault = true;
         _gameList.SelectedIndexChanged += (_, _) => UpdateDetails();
         _gameList.DoubleClick += (_, _) => LaunchSelectedGame();
+        _gameList.Resize += (_, _) => FitGameListColumns();
         split.Panel1.Controls.Add(_gameList);
 
         // Details panel.
         _detailsPanel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Panel, Padding = new Padding(16) };
         split.Panel2.Controls.Add(_detailsPanel);
 
+        // Fixed single-line sizes with ellipsis, so long names and paths can't spill
+        // over the controls positioned below them.
         _detailName = Theme.MakeLabel("Select a game", font: Theme.TitleFont);
         _detailName.Location = new Point(16, 14);
+        _detailName.AutoSize = false;
+        _detailName.Size = new Size(DetailsPanelWidth - 40, 30);
+        _detailName.AutoEllipsis = true;
         _detailPath = Theme.MakeLabel("", Theme.TextDim);
         _detailPath.Location = new Point(17, 46);
-        _detailPath.MaximumSize = new Size(480, 0);
+        _detailPath.AutoSize = false;
+        _detailPath.Size = new Size(DetailsPanelWidth - 40, 34);
+        _detailPath.AutoEllipsis = true;
         _detailUnity = Theme.MakeLabel("");
         _detailUnity.Location = new Point(17, 84);
         _detailBackend = Theme.MakeLabel("");

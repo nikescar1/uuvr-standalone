@@ -307,34 +307,69 @@ public class SubsystemXrToggler : VrToggler
             return null;
         }
 
-        // Try descriptors from the preferred runtime (the one the display came from) first.
-        if (preferredRuntimePrefix != null)
+        // Order of attempts matters a lot here. OpenVR's native plugin fully initializes
+        // itself when its subsystem is created and fails with an error code when it can't.
+        // Unity's OpenXR native plugin instead relies on its managed package having set up
+        // the OpenXR session first, and hard-crashes the game when driven without it — so
+        // OpenXR goes last, and is skipped entirely while other runtimes are available.
+        var hasNonOpenXr = false;
+        foreach (var descriptor in matched)
         {
-            matched.Sort((left, right) =>
-                (GetDescriptorId(right).StartsWith(preferredRuntimePrefix) ? 1 : 0) -
-                (GetDescriptorId(left).StartsWith(preferredRuntimePrefix) ? 1 : 0));
+            if (!GetDescriptorId(descriptor).StartsWith("OpenXR")) hasNonOpenXr = true;
         }
+
+        matched.Sort((left, right) => ScoreDescriptor(right, preferredRuntimePrefix) - ScoreDescriptor(left, preferredRuntimePrefix));
 
         foreach (var descriptor in matched)
         {
+            var descriptorId = GetDescriptorId(descriptor);
+
 #if CPP
-            var nativeResult = CreateSubsystemNatively(descriptor, subsystemTypeName, description);
-            if (nativeResult != null)
+            if (descriptorId.StartsWith("OpenXR") && hasNonOpenXr)
             {
-                if (description == "display") _displaySubsystemDescriptorId = GetDescriptorId(descriptor);
-                return nativeResult;
+                UuvrTrace.Log(
+                    $"skipping native creation from '{descriptorId}': Unity's OpenXR plugin crashes without its managed package, and other runtimes are available");
+            }
+            else
+            {
+                if (descriptorId.StartsWith("OpenXR"))
+                {
+                    UuvrTrace.LogWarning(
+                        "only OpenXR descriptors are available; trying it natively even though Unity's OpenXR plugin is known to crash without its managed package");
+                }
+
+                var nativeResult = CreateSubsystemNatively(descriptor, subsystemTypeName, description);
+                if (nativeResult != null)
+                {
+                    if (description == "display") _displaySubsystemDescriptorId = descriptorId;
+                    return nativeResult;
+                }
             }
 #endif
 
             var managedResult = CreateSubsystemManaged(descriptor, subsystemTypeName, description);
             if (managedResult != null)
             {
-                if (description == "display") _displaySubsystemDescriptorId = GetDescriptorId(descriptor);
+                if (description == "display") _displaySubsystemDescriptorId = descriptorId;
                 return managedResult;
             }
         }
 
         return null;
+    }
+
+    private static int ScoreDescriptor(object descriptor, string? preferredRuntimePrefix)
+    {
+        var descriptorId = GetDescriptorId(descriptor);
+        var score = 0;
+
+        // Same runtime as the display subsystem beats everything else.
+        if (preferredRuntimePrefix != null && descriptorId.StartsWith(preferredRuntimePrefix)) score += 400;
+
+        if (descriptorId.StartsWith("OpenVR")) score += 200;
+        else if (!descriptorId.StartsWith("OpenXR")) score += 100;
+
+        return score;
     }
 
     private static object? CreateSubsystemManaged(object descriptor, string subsystemTypeName, string description)
