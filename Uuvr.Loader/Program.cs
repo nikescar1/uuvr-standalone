@@ -21,9 +21,52 @@ internal static class Program
             return RunCli(args);
         }
 
-        ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm());
+        // Without these, a bug anywhere in the UI kills the process with no window and no
+        // message — the user just gets a crash dump. Turn that into something readable.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => ReportFatal(e.ExceptionObject as Exception);
+        Application.ThreadException += (_, e) => ReportFatal(e.Exception);
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+
+        try
+        {
+            ApplicationConfiguration.Initialize();
+            Application.Run(new MainForm());
+        }
+        catch (Exception exception)
+        {
+            ReportFatal(exception);
+            return 1;
+        }
+
         return 0;
+    }
+
+    private static void ReportFatal(Exception? exception)
+    {
+        var details = exception?.ToString() ?? "Unknown error.";
+
+        try
+        {
+            var logPath = Path.Combine(Path.GetTempPath(), "uuvr-loader-crash.log");
+            File.WriteAllText(logPath, $"UUVR Loader {LoaderVersion.Value}\n\n{details}");
+            details += $"\n\nSaved to: {logPath}";
+        }
+        catch (Exception)
+        {
+        }
+
+        try
+        {
+            MessageBox.Show(
+                $"UUVR Loader hit an unexpected error and has to close.\n\n{details}",
+                $"UUVR Loader {LoaderVersion.Value}",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        catch (Exception)
+        {
+            Console.Error.WriteLine(details);
+        }
     }
 
     // Headless mode so the whole flow can be scripted:

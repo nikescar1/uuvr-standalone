@@ -63,34 +63,62 @@ public class MainForm : Form
         };
     }
 
-    // Positioning the splitter only after the form has its real size avoids the
-    // clamping/drift that happens when SplitterDistance is set during construction.
+    // Positioning the splitter only once the form has its real size avoids the clamping and
+    // drift that happens when SplitterDistance is set during construction.
     private void PlaceSplitter()
     {
         try
         {
-            _split.SplitterDistance = Math.Max(_split.Panel1MinSize, _split.ClientSize.Width - DetailsPanelWidth);
+            var available = _split.ClientSize.Width - _split.SplitterWidth;
+
+            // Needs room for at least one pixel either side of the splitter, or there is no
+            // legal distance to assign at all.
+            if (available < 2) return;
+
+            // Clamp into the range the control will accept, so this can't throw the way
+            // the minimum-size properties did.
+            var desired = available - DetailsPanelWidth;
+            _split.SplitterDistance = Math.Max(1, Math.Min(desired, available - 1));
         }
         catch (Exception)
         {
-            // Window smaller than the minimum panels; the SplitContainer picks a valid position itself.
+            // Window too small to honour the requested split; whatever position the
+            // SplitContainer already has is fine.
         }
+
         FitGameListColumns();
     }
+
+    private bool _fittingColumns;
 
     // The first column absorbs all remaining width, so the header never shows an
     // unpainted strip past the last column.
     private void FitGameListColumns()
     {
+        // Changing a column width can toggle the list's scrollbar, which resizes the list,
+        // which lands back here. Without this guard that recurses until the stack dies.
+        if (_fittingColumns) return;
         if (_gameList.Columns.Count == 0) return;
 
-        var otherColumnsWidth = 0;
-        for (var index = 1; index < _gameList.Columns.Count; index++)
+        _fittingColumns = true;
+        try
         {
-            otherColumnsWidth += _gameList.Columns[index].Width;
-        }
+            var otherColumnsWidth = 0;
+            for (var index = 1; index < _gameList.Columns.Count; index++)
+            {
+                otherColumnsWidth += _gameList.Columns[index].Width;
+            }
 
-        _gameList.Columns[0].Width = Math.Max(160, _gameList.ClientSize.Width - otherColumnsWidth - 4);
+            var width = _gameList.ClientSize.Width - otherColumnsWidth - SystemInformation.VerticalScrollBarWidth - 4;
+            _gameList.Columns[0].Width = Math.Max(160, width);
+        }
+        catch (Exception)
+        {
+        }
+        finally
+        {
+            _fittingColumns = false;
+        }
     }
 
     private void BuildLayout()
@@ -139,16 +167,19 @@ public class MainForm : Form
         Controls.Add(header);
         header.BringToFront();
 
-        // Main split: game list on the left, details on the right. The details panel keeps a
-        // fixed width; the game list absorbs window resizing.
+        // Main split: game list on the left, details on the right. FixedPanel.Panel2 keeps the
+        // details panel a constant width while the game list absorbs window resizing.
+        //
+        // Panel1MinSize/Panel2MinSize are deliberately left alone. A fresh SplitContainer is
+        // 150px wide, and assigning a minimum wider than that makes WinForms push
+        // SplitterDistance out of its own legal range and throw, which crashed the loader on
+        // launch. The splitter position is managed in PlaceSplitter instead.
         _split = new SplitContainer
         {
             Dock = DockStyle.Fill,
             BackColor = Theme.Background,
             SplitterWidth = 6,
             FixedPanel = FixedPanel.Panel2,
-            Panel1MinSize = 300,
-            Panel2MinSize = DetailsPanelWidth,
         };
         var split = _split;
         Controls.Add(split);
