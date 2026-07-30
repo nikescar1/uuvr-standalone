@@ -8,6 +8,9 @@ namespace Uuvr.ModUi;
 // In-game settings menu, inspired by UEVR's overlay UI.
 // Lets you tweak every UUVR setting live without leaving the game or editing config files.
 // Rendered with IMGUI so it also shows up inside the headset when the VR UI is in Mirror mode.
+//
+// Laid out by hand rather than with GUILayout: see GuiBridge for why. That also means no
+// scroll view, so long sections are paged instead.
 public class UuvrMenu : UuvrBehaviour
 {
 #if CPP
@@ -21,13 +24,22 @@ public class UuvrMenu : UuvrBehaviour
     // Enum value rows get unwieldy beyond this count; larger enums use a cycle widget instead.
     private const int MaxEnumButtons = 5;
 
-    private Vector2 _scrollPosition;
+    private const float RowHeight = 24f;
+    private const float Gap = 4f;
+    private const float Padding = 12f;
+    private const int TabsPerRow = 4;
+
     private string _activeSection = "";
+    private int _firstEntryIndex;
     private readonly Dictionary<string, string> _textBuffers = new();
     private bool _guiFailed;
     private CursorLockMode _previousCursorLockState;
     private bool _previousCursorVisible;
     private bool _cursorStateSaved;
+
+    // Layout cursor, in screen space.
+    private Rect _content;
+    private float _cursorY;
 
     public void ToggleOpen()
     {
@@ -85,8 +97,25 @@ public class UuvrMenu : UuvrBehaviour
             "Change settings in BepInEx/config/raicuparta.uuvr-*.cfg instead, or use the hotkeys: " +
             $"{ModConfiguration.Instance.CycleCameraTrackingKey.Value} cycles camera tracking mode, " +
             $"{ModConfiguration.Instance.CycleUiPatchModeKey.Value} cycles UI patch mode, " +
-            $"{ModConfiguration.Instance.ToggleOverrideDepthKey.Value} toggles depth override.");
+            $"{ModConfiguration.Instance.ToggleOverrideDepthKey.Value} toggles depth override, " +
+            $"{ModConfiguration.Instance.CycleVrCameraKey.Value} cycles which camera VR uses, " +
+            $"{ModConfiguration.Instance.CameraReportKey.Value} writes a camera report.");
     }
+
+    private Rect NextRow(float height)
+    {
+        var rect = new Rect(_content.x, _content.y + _cursorY, _content.width, height);
+        _cursorY += height + Gap;
+        return rect;
+    }
+
+    private static Rect Column(Rect row, int index, int count)
+    {
+        var width = (row.width - Gap * (count - 1)) / count;
+        return new Rect(row.x + (width + Gap) * index, row.y, width, row.height);
+    }
+
+    private float RemainingHeight => _content.height - _cursorY;
 
     private void DrawMenu()
     {
@@ -99,46 +128,100 @@ public class UuvrMenu : UuvrBehaviour
         GuiBridge.Box(menuRect, "");
         GuiBridge.Box(menuRect, "");
 
-        GuiBridge.BeginArea(new Rect(menuRect.x + 12f, menuRect.y + 10f, menuRect.width - 24f, menuRect.height - 20f));
+        _content = new Rect(
+            menuRect.x + Padding,
+            menuRect.y + Padding,
+            menuRect.width - Padding * 2f,
+            menuRect.height - Padding * 2f);
+        _cursorY = 0f;
 
         var vrEnabled = UuvrCore.Instance != null && UuvrCore.Instance.IsVrEnabled;
-        GuiBridge.Label($"UUVR {UuvrPlugin.PluginVersion}  |  VR: {(vrEnabled ? "ON" : "OFF")}  |  Menu key: {ModConfiguration.Instance.ToggleMenuKey.Value}");
-        GuiBridge.Space(6f);
+        GuiBridge.Label(
+            NextRow(RowHeight),
+            $"UUVR {UuvrPlugin.PluginVersion}  |  VR: {(vrEnabled ? "ON" : "OFF")}  |  Menu key: {ModConfiguration.Instance.ToggleMenuKey.Value}");
 
-        GuiBridge.BeginHorizontal();
-        if (GuiBridge.Button($"Toggle VR ({ModConfiguration.Instance.ToggleVrKey.Value})")) UuvrCore.Instance?.ToggleVr();
-        if (GuiBridge.Button($"Recenter ({ModConfiguration.Instance.RecenterKey.Value})")) VrRecenter.Recenter();
-        if (GuiBridge.Button("Save config")) ModConfiguration.Instance.Config.Save();
-        if (GuiBridge.Button("Close")) Close();
-        GuiBridge.EndHorizontal();
-        GuiBridge.Space(10f);
+        var actions = NextRow(RowHeight);
+        if (GuiBridge.Button(Column(actions, 0, 4), $"Toggle VR ({ModConfiguration.Instance.ToggleVrKey.Value})"))
+        {
+            UuvrCore.Instance?.ToggleVr();
+        }
+        if (GuiBridge.Button(Column(actions, 1, 4), $"Recenter ({ModConfiguration.Instance.RecenterKey.Value})"))
+        {
+            VrRecenter.Recenter();
+        }
+        if (GuiBridge.Button(Column(actions, 2, 4), "Save config")) ModConfiguration.Instance.Config.Save();
+        if (GuiBridge.Button(Column(actions, 3, 4), "Close")) Close();
+
+        _cursorY += Gap;
 
         var sections = GetSections();
         if (_activeSection.Length == 0 && sections.Count > 0) _activeSection = sections[0];
 
-        const int tabsPerRow = 4;
-        for (var rowStart = 0; rowStart < sections.Count; rowStart += tabsPerRow)
+        for (var rowStart = 0; rowStart < sections.Count; rowStart += TabsPerRow)
         {
-            GuiBridge.BeginHorizontal();
-            for (var index = rowStart; index < Mathf.Min(rowStart + tabsPerRow, sections.Count); index++)
+            var row = NextRow(RowHeight);
+            var inRow = Mathf.Min(TabsPerRow, sections.Count - rowStart);
+            for (var index = 0; index < inRow; index++)
             {
-                var section = sections[index];
+                var section = sections[rowStart + index];
                 var label = section == _activeSection ? $"[ {section} ]" : section;
-                if (GuiBridge.Button(label)) _activeSection = section;
+                if (GuiBridge.Button(Column(row, index, TabsPerRow), label))
+                {
+                    _activeSection = section;
+                    _firstEntryIndex = 0;
+                }
             }
-            GuiBridge.EndHorizontal();
         }
 
-        GuiBridge.Space(8f);
-        _scrollPosition = GuiBridge.BeginScrollView(_scrollPosition);
+        _cursorY += Gap;
+        DrawSectionEntries();
+    }
+
+    private void DrawSectionEntries()
+    {
+        var entries = new List<ConfigEntryBase>();
         foreach (var entry in GetAllEntries())
         {
-            if (entry.Definition.Section != _activeSection) continue;
-            DrawEntry(entry);
-            GuiBridge.Space(10f);
+            if (entry.Definition.Section == _activeSection) entries.Add(entry);
         }
-        GuiBridge.EndScrollView();
-        GuiBridge.EndArea();
+
+        if (_firstEntryIndex >= entries.Count) _firstEntryIndex = 0;
+
+        // Leave room for the pager, so it can't get pushed off the bottom of the menu.
+        var pagerHeight = RowHeight + Gap;
+        var index = _firstEntryIndex;
+        while (index < entries.Count)
+        {
+            var entry = entries[index];
+            if (RemainingHeight - pagerHeight < GetEntryHeight(entry)) break;
+
+            DrawEntry(entry);
+            _cursorY += Gap;
+            index++;
+        }
+
+        var shown = index - _firstEntryIndex;
+        if (shown >= entries.Count) return;
+
+        _cursorY = _content.height - RowHeight;
+        var pager = NextRow(RowHeight);
+        if (GuiBridge.Button(Column(pager, 0, 3), "< Previous"))
+        {
+            // Paging back by however many fitted keeps the pages stable in both directions.
+            _firstEntryIndex = Mathf.Max(0, _firstEntryIndex - Mathf.Max(1, shown));
+        }
+        GuiBridge.Label(
+            Column(pager, 1, 3), $"  {_firstEntryIndex + 1}-{_firstEntryIndex + shown} of {entries.Count}");
+        if (GuiBridge.Button(Column(pager, 2, 3), "Next >"))
+        {
+            _firstEntryIndex = index < entries.Count ? index : 0;
+        }
+    }
+
+    private static float GetEntryHeight(ConfigEntryBase entry)
+    {
+        // Bools are a single toggle; everything else is a label with a control under it.
+        return entry.SettingType == typeof(bool) ? RowHeight : RowHeight * 2f + Gap;
     }
 
     private static List<ConfigEntryBase> GetAllEntries()
@@ -184,57 +267,61 @@ public class UuvrMenu : UuvrBehaviour
         }
     }
 
-    private static void DrawBool(ConfigEntryBase entry)
+    private void DrawBool(ConfigEntryBase entry)
     {
         var value = (bool)entry.BoxedValue;
-        var newValue = GuiBridge.Toggle(value, " " + entry.Definition.Key);
+        var newValue = GuiBridge.Toggle(NextRow(RowHeight), value, " " + entry.Definition.Key);
         if (newValue != value) entry.BoxedValue = newValue;
     }
 
-    private static void DrawEnum(ConfigEntryBase entry)
+    private void DrawEnum(ConfigEntryBase entry)
     {
         var settingType = entry.SettingType;
         var currentValue = entry.BoxedValue;
         var values = Enum.GetValues(settingType);
 
-        GuiBridge.Label($"{entry.Definition.Key}: {currentValue}");
+        GuiBridge.Label(NextRow(RowHeight), $"{entry.Definition.Key}: {currentValue}");
+        var row = NextRow(RowHeight);
 
         if (values.Length <= MaxEnumButtons)
         {
-            GuiBridge.BeginHorizontal();
-            foreach (var value in values)
+            for (var index = 0; index < values.Length; index++)
             {
+                var value = values.GetValue(index);
                 var isCurrent = value.Equals(currentValue);
                 var label = isCurrent ? $"* {value}" : value.ToString();
-                if (GuiBridge.Button(label) && !isCurrent) entry.BoxedValue = value;
+                if (GuiBridge.Button(Column(row, index, values.Length), label) && !isCurrent)
+                {
+                    entry.BoxedValue = value;
+                }
             }
-            GuiBridge.EndHorizontal();
+
+            return;
         }
-        else
+
+        var currentIndex = Array.IndexOf(values, currentValue);
+        if (GuiBridge.Button(Column(row, 0, 2), "<"))
         {
-            var currentIndex = Array.IndexOf(values, currentValue);
-            GuiBridge.BeginHorizontal();
-            if (GuiBridge.Button("<"))
-            {
-                var previousIndex = (currentIndex - 1 + values.Length) % values.Length;
-                entry.BoxedValue = values.GetValue(previousIndex);
-            }
-            if (GuiBridge.Button(">"))
-            {
-                var nextIndex = (currentIndex + 1) % values.Length;
-                entry.BoxedValue = values.GetValue(nextIndex);
-            }
-            GuiBridge.EndHorizontal();
+            entry.BoxedValue = values.GetValue((currentIndex - 1 + values.Length) % values.Length);
+        }
+        if (GuiBridge.Button(Column(row, 1, 2), ">"))
+        {
+            entry.BoxedValue = values.GetValue((currentIndex + 1) % values.Length);
         }
     }
 
-    private static void DrawSlider(ConfigEntryBase entry, float min, float max)
+    private void DrawSlider(ConfigEntryBase entry, float min, float max)
     {
         var isInt = entry.SettingType == typeof(int);
         var value = Convert.ToSingle(entry.BoxedValue);
 
-        GuiBridge.Label($"{entry.Definition.Key}: {(isInt ? value.ToString("0") : value.ToString("0.###"))}");
-        var newValue = GuiBridge.HorizontalSlider(value, min, max);
+        GuiBridge.Label(
+            NextRow(RowHeight), $"{entry.Definition.Key}: {(isInt ? value.ToString("0") : value.ToString("0.###"))}");
+
+        // Sliders are drawn thinner than a row so they sit on the text baseline properly.
+        var row = NextRow(RowHeight);
+        var newValue = GuiBridge.HorizontalSlider(
+            new Rect(row.x, row.y + RowHeight * 0.25f, row.width, RowHeight * 0.5f), value, min, max);
 
         if (isInt)
         {
@@ -251,7 +338,7 @@ public class UuvrMenu : UuvrBehaviour
     // edits the serialized (config file) form of the value, applied on demand.
     private void DrawSerializedText(ConfigEntryBase entry)
     {
-        GuiBridge.Label(entry.Definition.Key);
+        GuiBridge.Label(NextRow(RowHeight), entry.Definition.Key);
 
         var bufferKey = entry.Definition.Section + "/" + entry.Definition.Key;
         if (!_textBuffers.TryGetValue(bufferKey, out var buffer))
@@ -259,9 +346,12 @@ public class UuvrMenu : UuvrBehaviour
             buffer = entry.GetSerializedValue();
         }
 
-        GuiBridge.BeginHorizontal();
-        _textBuffers[bufferKey] = GuiBridge.TextField(buffer);
-        if (GuiBridge.Button("Apply"))
+        var row = NextRow(RowHeight);
+        var applyWidth = 80f;
+        _textBuffers[bufferKey] = GuiBridge.TextField(
+            new Rect(row.x, row.y, row.width - applyWidth - Gap, row.height), buffer);
+
+        if (GuiBridge.Button(new Rect(row.xMax - applyWidth, row.y, applyWidth, row.height), "Apply"))
         {
             try
             {
@@ -269,11 +359,10 @@ public class UuvrMenu : UuvrBehaviour
             }
             catch (Exception exception)
             {
-                Debug.LogWarning($"UUVR: failed to apply value for {entry.Definition.Key}: {exception.Message}");
+                UuvrTrace.LogWarning($"failed to apply value for {entry.Definition.Key}: {exception.Message}");
             }
             _textBuffers.Remove(bufferKey);
         }
-        GuiBridge.EndHorizontal();
     }
 
     private static bool TryGetRange(ConfigEntryBase entry, out float min, out float max)

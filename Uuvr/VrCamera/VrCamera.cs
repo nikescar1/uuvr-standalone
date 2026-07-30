@@ -1,18 +1,28 @@
 ﻿using System;
-#if CPP
-using Il2CppSystem.Collections.Generic;
-#else
-using System.Collections.Generic;
-#endif
 using UnityEngine;
 
 namespace Uuvr.VrCamera;
 
 public class VrCamera : UuvrBehaviour
 {
-    public static readonly HashSet<Camera> VrCameras = new();
-    public static readonly HashSet<Camera> IgnoredCameras = new();
     public static VrCamera? HighestDepthVrCamera { get; private set; }
+
+    // Membership used to live in static HashSet<Camera>s. Those read fine in Mono, but on
+    // IL2CPP the generic collection methods behind them are managed code, so a game that
+    // never uses a HashSet has them stripped and every lookup throws — which silently took
+    // out camera detection entirely. Components answer the same questions through engine
+    // calls that are always present.
+    public static void Ignore(Camera camera)
+    {
+        if (camera == null || IsIgnored(camera)) return;
+        camera.gameObject.AddComponent<UuvrIgnoredCamera>();
+    }
+
+    public static bool IsIgnored(Camera camera) =>
+        camera != null && camera.GetComponent<UuvrIgnoredCamera>() != null;
+
+    public static bool IsVrCamera(Camera camera) =>
+        camera != null && camera.GetComponent<VrCamera>() != null;
 
 #if MODERN
     private Quaternion _rotationBeforeRender;
@@ -26,6 +36,7 @@ public class VrCamera : UuvrBehaviour
     }
 
     private UuvrPoseDriver? _parentCameraPoseDriver;
+    private VrCameraOffset? _rotationNullifier;
     private Camera? _childCamera;
     private UuvrPoseDriver? _childCameraPoseDriver;
     private LineRenderer _forwardLine;
@@ -44,7 +55,6 @@ public class VrCamera : UuvrBehaviour
     {
         base.Awake();
         ParentCamera = GetComponent<Camera>();
-        VrCameras.Add(ParentCamera);
     }
 
 #if MODERN
@@ -71,7 +81,20 @@ public class VrCamera : UuvrBehaviour
         // Toggling VR off destroys these, and an overridden view matrix would otherwise
         // stay on the game's own camera and leave it broken in flat mode too.
         ResetCameraMatrices();
-        VrCameras.Remove(ParentCamera);
+        if (HighestDepthVrCamera == this) HighestDepthVrCamera = null;
+
+        // Everything Start built has to go with it, or releasing a camera (by changing the
+        // filters, or picking a different camera by hand) would leave the old child camera
+        // still rendering over the new one.
+        try
+        {
+            if (_rotationNullifier != null) Destroy(_rotationNullifier.gameObject);
+            if (_parentCameraPoseDriver != null) Destroy(_parentCameraPoseDriver);
+        }
+        catch (Exception exception)
+        {
+            UuvrTrace.LogWarning($"couldn't clean up a VR camera: {UuvrReflection.Describe(exception)}");
+        }
     }
 
     private void Start()
@@ -79,12 +102,13 @@ public class VrCamera : UuvrBehaviour
         // TODO: setting for disabling post processing, antialiasing, etc.
 
         var rotationNullifier = Create<VrCameraOffset>(transform);
+        _rotationNullifier = rotationNullifier;
         _parentCameraPoseDriver = ParentCamera.gameObject.AddComponent<UuvrPoseDriver>();
         
         _childCameraPoseDriver = Create<UuvrPoseDriver>(rotationNullifier.transform);
         _childCameraPoseDriver.name = "VrChildCamera";
         _childCamera = _childCameraPoseDriver.gameObject.AddComponent<Camera>();
-        IgnoredCameras.Add(_childCamera);
+        Ignore(_childCamera);
         _childCamera.CopyFrom(ParentCamera);
         
         // TODO: add option for this.

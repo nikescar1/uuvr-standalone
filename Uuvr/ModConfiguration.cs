@@ -86,6 +86,9 @@ public class ModConfiguration
     public readonly ConfigEntry<KeyboardKey.KeyCode> CycleCameraTrackingKey;
     public readonly ConfigEntry<KeyboardKey.KeyCode> CycleUiPatchModeKey;
     public readonly ConfigEntry<KeyboardKey.KeyCode> ToggleOverrideDepthKey;
+    public readonly ConfigEntry<KeyboardKey.KeyCode> CameraReportKey;
+    public readonly ConfigEntry<KeyboardKey.KeyCode> CycleVrCameraKey;
+    public readonly ConfigEntry<string> ForcedCameraByScene;
     public readonly ConfigEntry<float> WorldScale;
     public readonly ConfigEntry<bool> OverrideNearClip;
     public readonly ConfigEntry<float> NearClipValue;
@@ -266,6 +269,18 @@ public class ModConfiguration
             KeyboardKey.KeyCode.F7,
             "Turns 'Override Depth' on and off, which some games need before the VR camera shows anything.");
 
+        CameraReportKey = config.Bind(
+            "Hotkeys",
+            "Camera Report Key",
+            KeyboardKey.KeyCode.F8,
+            "Writes every camera in the scene, and what UUVR decided to do with each one, to uuvr-trace.log. Press this while the game is showing the problem.");
+
+        CycleVrCameraKey = config.Bind(
+            "Hotkeys",
+            "Cycle VR Camera Key",
+            KeyboardKey.KeyCode.F9,
+            "Steps through the cameras the game is currently rendering with, so you can pick the one VR looks through. Starts on automatic, and one more press past the last camera goes back to it. The choice is remembered per scene.");
+
         WorldScale = config.Bind(
             "Camera",
             "World Scale",
@@ -299,6 +314,12 @@ public class ModConfiguration
             "Never Use Cameras Named",
             "",
             "Cameras whose name contains one of these values never get used for VR. List of values separated by /. Example: 'Minimap/Portrait'");
+
+        ForcedCameraByScene = config.Bind(
+            "Camera Filters",
+            "Selected Camera Per Scene",
+            "",
+            "Cameras picked with the cycle VR camera key, as scene=camera pairs separated by /. Empty means automatic. Example: 'MainMenu=UICamera/Track01=Chase Camera'");
 
         CameraTracking = config.Bind(
             "Camera",

@@ -24,7 +24,7 @@ public class UiOverlayRenderMode: UuvrBehaviour
         base.Awake();
 
         _uiSceneCamera = Create<UuvrPoseDriver>(transform).gameObject.AddComponent<Camera>();
-        VrCamera.VrCamera.IgnoredCameras.Add(_uiSceneCamera);
+        VrCamera.VrCamera.Ignore(_uiSceneCamera);
         _uiSceneCamera.clearFlags = CameraClearFlags.Depth;
         _uiSceneCamera.depth = 100;
         _uiSceneCamera.cullingMask = 1 << LayerHelper.GetVrUiLayer();

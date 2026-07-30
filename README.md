@@ -38,10 +38,19 @@ game starts. Everything the loader adds is tracked and fully reversible.
 | `F5` | Cycle camera tracking mode |
 | `F6` | Cycle UI patch mode |
 | `F7` | Toggle depth override |
+| `F8` | Write a camera report to `uuvr-trace.log` |
+| `F9` | Cycle which camera VR looks through |
 
-`F5`–`F7` exist because the menu needs Unity's IMGUI, which some IL2CPP games strip out
+`F5`–`F9` exist because the menu needs Unity's IMGUI, which some IL2CPP games strip out
 entirely. They reach the settings that decide whether a game renders at all, and write the
 value they changed to `uuvr-trace.log`.
+
+`F9` is the escape hatch for games that render through several cameras and UUVR picks the
+wrong one. It steps through the cameras the game is currently drawing with — starting on
+automatic, and returning to it one press past the last camera — and remembers the choice per
+scene, since a game's menu and its gameplay usually need different answers. `F8` lists every
+camera and what UUVR decided to do with each, which is the fastest way to see why a game
+shows nothing.
 
 The in-game menu lets you tweak everything live: camera tracking mode, world scale,
 near clip, camera offsets, UI patch modes, camera filters, hotkeys, and more. Settings
@@ -107,6 +116,9 @@ Tips when a game misbehaves:
   culling in some games — modern Unity games especially. Modern games now default to
   `Child`, and configs written by an older UUVR are moved over automatically unless you
   picked a mode yourself.
+- **VR runs but the game looks untouched, or the wrong view is in the headset**: press `F8`
+  and look at the camera report in `uuvr-trace.log`. It lists every camera and says whether
+  UUVR took it over or why it passed on it. If it picked the wrong one, cycle with `F9`.
 - Try a different **Camera Tracking Mode** in the menu (some games need `Child`,
   others `Relative Matrix`/`Relative Transform`).
 - If the image is black or missing, enable **Override Depth** and raise the value.
